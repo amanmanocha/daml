@@ -12,7 +12,7 @@ import akka.{Done, NotUsed}
 import anorm.SqlParser._
 import anorm.ToStatement.optionToStatement
 import anorm.{AkkaStream, BatchSql, Macro, NamedParameter, RowParser, SQL}
-import com.daml.ledger.participant.state.v2.PartyAllocationResult
+import com.daml.ledger.participant.state.v2.{PartyAllocationResult, TransactionId}
 import com.digitalasset.daml.lf.data.Ref._
 import com.digitalasset.daml.lf.data.Relation.Relation
 import com.digitalasset.daml.lf.transaction.Node
@@ -646,6 +646,9 @@ private class PostgresLedgerDao(
   private val SQL_SELECT_ENTRY =
     SQL("select * from ledger_entries where ledger_offset={ledger_offset}")
 
+  private val SQL_SELECT_TRANSACTION =
+    SQL("select * from ledger_entries where transaction_id={transaction_id}")
+
   private val SQL_SELECT_DISCLOSURE =
     SQL("select * from disclosures where transaction_id={transaction_id}")
 
@@ -761,6 +764,19 @@ private class PostgresLedgerDao(
           .map(toLedgerEntry)
           .map(_._2)
       }
+  }
+
+  override def lookupTransaction(
+      transactionId: TransactionId): Future[Option[(LedgerOffset, LedgerEntry.Transaction)]] = {
+    dbDispatcher.executeSql { implicit conn =>
+      SQL_SELECT_TRANSACTION
+        .on("transaction_id" -> (transactionId: String))
+        .as(EntryParser.singleOpt)
+        .map(toLedgerEntry)
+        .collect {
+          case (offset, t: LedgerEntry.Transaction) => offset -> t
+        }
+    }
   }
 
   private val ContractDataParser = (ledgerString("id")

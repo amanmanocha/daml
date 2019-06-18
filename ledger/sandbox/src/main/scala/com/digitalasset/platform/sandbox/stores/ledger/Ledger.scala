@@ -27,12 +27,30 @@ import com.digitalasset.platform.sandbox.stores.ActiveContracts.ActiveContract
 import com.digitalasset.platform.sandbox.stores.InMemoryActiveContracts
 import com.digitalasset.platform.sandbox.stores.ledger.ScenarioLoader.LedgerEntryWithLedgerEndIncrement
 import com.digitalasset.platform.sandbox.stores.ledger.inmemory.InMemoryLedger
-import com.digitalasset.platform.sandbox.stores.ledger.sql.{SqlLedger, SqlStartMode}
+import com.digitalasset.platform.sandbox.stores.ledger.sql.{
+  ReadOnlySqlLedger,
+  SqlLedger,
+  SqlStartMode
+}
 
 import scala.concurrent.Future
 
+trait Ledger extends ReadOnlyLedger with WriteLedger
+
+trait WriteLedger extends AutoCloseable {
+
+  def publishHeartbeat(time: Instant): Future[Unit]
+
+  def publishTransaction(
+      submitterInfo: SubmitterInfo,
+      transactionMeta: TransactionMeta,
+      transaction: SubmittedTransaction): Future[SubmissionResult]
+
+  def allocateParty(party: Party, displayName: Option[String]): Future[PartyAllocationResult]
+}
+
 /** Defines all the functionalities a Ledger needs to provide */
-trait Ledger extends AutoCloseable {
+trait ReadOnlyLedger extends AutoCloseable {
 
   def ledgerId: LedgerId
 
@@ -46,19 +64,10 @@ trait Ledger extends AutoCloseable {
 
   def lookupKey(key: GlobalKey): Future[Option[AbsoluteContractId]]
 
-  def publishHeartbeat(time: Instant): Future[Unit]
-
-  def publishTransaction(
-      submitterInfo: SubmitterInfo,
-      transactionMeta: TransactionMeta,
-      transaction: SubmittedTransaction): Future[SubmissionResult]
-
   def lookupTransaction(
       transactionId: TransactionIdString): Future[Option[(Long, LedgerEntry.Transaction)]]
 
   def parties: Future[List[PartyDetails]]
-
-  def allocateParty(party: Party, displayName: Option[String]): Future[PartyAllocationResult]
 }
 
 object Ledger {
@@ -104,7 +113,25 @@ object Ledger {
   )(implicit mat: Materializer, mm: MetricsManager): Future[Ledger] =
     SqlLedger(jdbcUrl, Some(ledgerId), timeProvider, acs, ledgerEntries, queueDepth, startMode)
 
+  /**
+    * Creates a Postgres backed read only ledger
+    *
+    * @param jdbcUrl       the jdbc url string containing the username and password as well
+    * @param ledgerId      the id to be used for the ledger
+    * @param timeProvider  the provider of time
+    * @return a Postgres backed Ledger
+    */
+  def postgresReadOnly(
+      jdbcUrl: String,
+      ledgerId: LedgerId,
+  )(implicit mat: Materializer, mm: MetricsManager): Future[ReadOnlyLedger] =
+    ReadOnlySqlLedger(jdbcUrl, Some(ledgerId))
+
   /** Wraps the given Ledger adding metrics around important calls */
   def metered(ledger: Ledger)(implicit mm: MetricsManager): Ledger = MeteredLedger(ledger)
+
+  /** Wraps the given Ledger adding metrics around important calls */
+  def meteredReadOnly(ledger: ReadOnlyLedger)(implicit mm: MetricsManager): ReadOnlyLedger =
+    MeteredReadOnlyLedger(ledger)
 
 }

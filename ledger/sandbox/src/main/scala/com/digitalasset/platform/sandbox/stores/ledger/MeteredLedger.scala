@@ -24,8 +24,8 @@ import com.digitalasset.platform.sandbox.stores.ActiveContracts.ActiveContract
 
 import scala.concurrent.Future
 
-private class MeteredLedger(ledger: Ledger, mm: MetricsManager) extends Ledger {
-
+private class MeteredReadOnlyLedger(ledger: ReadOnlyLedger, mm: MetricsManager)
+    extends ReadOnlyLedger {
   override def ledgerId: LedgerId = ledger.ledgerId
 
   override def ledgerEntries(offset: Option[Long]): Source[(Long, LedgerEntry), NotUsed] =
@@ -43,6 +43,27 @@ private class MeteredLedger(ledger: Ledger, mm: MetricsManager) extends Ledger {
   override def lookupKey(key: GlobalKey): Future[Option[AbsoluteContractId]] =
     mm.timedFuture("Ledger:lookupKey", ledger.lookupKey(key))
 
+  override def lookupTransaction(
+      transactionId: TransactionIdString): Future[Option[(Long, LedgerEntry.Transaction)]] =
+    mm.timedFuture("Ledger:lookupTransaction", ledger.lookupTransaction(transactionId))
+
+  override def parties: Future[List[PartyDetails]] =
+    mm.timedFuture("Ledger:parties", ledger.parties)
+
+  override def close(): Unit = {
+    ledger.close()
+  }
+}
+
+object MeteredReadOnlyLedger {
+  def apply(ledger: ReadOnlyLedger)(implicit mm: MetricsManager): ReadOnlyLedger =
+    new MeteredReadOnlyLedger(ledger, mm)
+}
+
+private class MeteredLedger(ledger: Ledger, mm: MetricsManager)
+    extends MeteredReadOnlyLedger(ledger, mm)
+    with Ledger {
+
   override def publishHeartbeat(time: Instant): Future[Unit] =
     mm.timedFuture("Ledger:publishHeartbeat", ledger.publishHeartbeat(time))
 
@@ -53,13 +74,6 @@ private class MeteredLedger(ledger: Ledger, mm: MetricsManager) extends Ledger {
     mm.timedFuture(
       "Ledger:publishTransaction",
       ledger.publishTransaction(submitterInfo, transactionMeta, transaction))
-
-  override def lookupTransaction(
-      transactionId: TransactionIdString): Future[Option[(Long, LedgerEntry.Transaction)]] =
-    mm.timedFuture("Ledger:lookupTransaction", ledger.lookupTransaction(transactionId))
-
-  override def parties: Future[List[PartyDetails]] =
-    mm.timedFuture("Ledger:parties", ledger.parties)
 
   override def allocateParty(
       party: Party,
