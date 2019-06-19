@@ -144,9 +144,9 @@ def daml_deps():
     if "com_github_grpc_grpc" not in native.existing_rules():
         http_archive(
             name = "com_github_grpc_grpc",
-            strip_prefix = "grpc-1.19.0",
-            urls = ["https://github.com/grpc/grpc/archive/v1.19.0.tar.gz"],
-            sha256 = "1d54cd95ed276c42c276e0a3df8ab33ee41968b73af14023c03a19db48f82e73",
+            strip_prefix = "grpc-1.21.3",
+            urls = ["https://github.com/grpc/grpc/archive/v1.21.3.tar.gz"],
+            sha256 = "50747c8939c535b1059f19534de263eb9b7570b5347390fb24b0bbce8763e9a4",
             patches = [
                 "@com_github_digital_asset_daml//bazel_tools:grpc-bazel-mingw.patch",
             ],
@@ -156,9 +156,16 @@ def daml_deps():
     if "io_grpc_grpc_java" not in native.existing_rules():
         http_archive(
             name = "io_grpc_grpc_java",
-            strip_prefix = "grpc-java-1.19.0",
-            urls = ["https://github.com/grpc/grpc-java/archive/v1.19.0.tar.gz"],
-            sha256 = "81d1e12bf0f8bd1560eed7c75f24d8bb8e7368dcf07802586e439c85cf89b005",
+            strip_prefix = "grpc-java-7e5e6e604a9a74cb62a0aa6edbdb47f2ae676ed7",
+            # This corresponds to the v1.21.x branch which is slightly ahead of the latest release
+            # in that series and has a fix for using custom Java toolchains.
+            urls = ["https://github.com/grpc/grpc-java/archive/7e5e6e604a9a74cb62a0aa6edbdb47f2ae676ed7.tar.gz"],
+            sha256 = "92dea47bdb47929465968b564238f9f8d8fcd28765e4c446380a819ca6fb5208",
+            # The java_grpc_library rules do not produce a "java" provider
+            # which is required for the javadoc_library rule so we patch the visibility
+            # to get access to the plugin directly.
+            patches = ["@com_github_digital_asset_daml//bazel_tools:grpc_java_visibility.patch"],
+            patch_args = ["-p1"],
         )
 
     if "com_github_johnynek_bazel_jar_jar" not in native.existing_rules():
@@ -238,7 +245,7 @@ java_import(
     if "com_github_google_bazel_common" not in native.existing_rules():
         http_archive(
             name = "com_github_google_bazel_common",
-            sha256 = "ccdd09559b49c7efd9e4b0b617b18e2a4bbdb2142fc30dfd3501eb5fa1294dcc",
-            strip_prefix = "bazel-common-f3dc1a775d21f74fc6f4bbcf076b8af2f6261a69",
-            urls = ["https://github.com/google/bazel-common/archive/f3dc1a775d21f74fc6f4bbcf076b8af2f6261a69.zip"],
+            sha256 = "178d0fd7aa92655624c77418ebf7b93ec9c160fdbc043a3bb11f98414112010d",
+            strip_prefix = "bazel-common-4fb7798392100282b7d377d9f9d4956c7e560689",
+            urls = ["https://github.com/google/bazel-common/archive/4fb7798392100282b7d377d9f9d4956c7e560689.zip"],
         )
