@@ -11,6 +11,7 @@ import akka.stream.Materializer
 import com.digitalasset.api.util.TimeProvider
 import com.digitalasset.daml.lf.data.Ref
 import com.digitalasset.daml.lf.data.Ref.PackageId
+import com.digitalasset.daml.lf.data.Ref.Party
 import com.digitalasset.grpc.adapter.ExecutionSequencerFactory
 import com.digitalasset.ledger.api.domain
 import com.digitalasset.ledger.api.testing.utils.{MockMessages, Resource}
@@ -29,10 +30,7 @@ import com.digitalasset.ledger.api.v1.command_submission_service.CommandSubmissi
 import com.digitalasset.ledger.api.v1.ledger_configuration_service.LedgerConfigurationServiceGrpc
 import com.digitalasset.ledger.api.v1.ledger_configuration_service.LedgerConfigurationServiceGrpc.LedgerConfigurationService
 import com.digitalasset.ledger.api.v1.ledger_identity_service.LedgerIdentityServiceGrpc.LedgerIdentityService
-import com.digitalasset.ledger.api.v1.ledger_identity_service.{
-  GetLedgerIdentityRequest,
-  LedgerIdentityServiceGrpc
-}
+import com.digitalasset.ledger.api.v1.ledger_identity_service.{GetLedgerIdentityRequest, LedgerIdentityServiceGrpc}
 import com.digitalasset.ledger.api.v1.package_service.PackageServiceGrpc
 import com.digitalasset.ledger.api.v1.package_service.PackageServiceGrpc.PackageService
 import com.digitalasset.ledger.api.v1.testing.reset_service.{ResetRequest, ResetServiceGrpc}
@@ -93,6 +91,11 @@ trait LedgerContext {
   def reflectionService: ServerReflectionGrpc.ServerReflectionStub
   def partyManagementService: PartyManagementService
   def packageManagementService: PackageManagementService
+
+  /** Default forParty implementation */
+  final def default: LedgerContext = forParty(None)
+  final def forParty(party: Party): LedgerContext = forParty(Some(party))
+  def forParty(party: Option[Party]): LedgerContext = this
 
   /**
     * resetService is protected on purpose, to disallow moving an instance of LedgerContext into an invalid state,
@@ -238,5 +241,48 @@ object LedgerContext {
     @SuppressWarnings(Array("org.wartremover.warts.ExplicitImplicitTypes"))
     implicit def withResource(resource: Resource[SingleChannelContext]) =
       ResourceExtensions.MultiResource(resource)
+  }
+
+
+  class MultiChannelContext(val mapping: Map[Party, LedgerContext],
+                            val defaultParty: Party,
+                            implicit val _esf: ExecutionSequencerFactory) extends LedgerContext {
+
+    override protected implicit def esf: ExecutionSequencerFactory = _esf
+
+    override def forParty(party: Option[Party]): LedgerContext = {
+      val p = party.getOrElse(defaultParty)
+      mapping.get(p) match {
+        case Some(lc) => lc
+        case None => throw new IllegalArgumentException("Unrecognised party: " + p + ", expecting one of: " + mapping.keySet.toString)
+      }
+    }
+
+    override def ledgerId: domain.LedgerId= default.ledgerId
+    override def packageIds: Iterable[Ref.PackageId] = default.packageIds
+    override def ledgerIdentityService: LedgerIdentityService = default.ledgerIdentityService
+    override def ledgerConfigurationService: LedgerConfigurationService = default.ledgerConfigurationService
+    override def packageService: PackageService = default.packageService
+    override def commandSubmissionService: CommandSubmissionService = default.commandSubmissionService
+    override def commandCompletionService: CommandCompletionService = default.commandCompletionService
+    override def commandService: CommandService = default.commandService
+    override def transactionService: TransactionService = default.transactionService
+    override def timeService: TimeService = default.timeService
+    override def acsService: ActiveContractsService = default.acsService
+    override def transactionClient: TransactionClient = default.transactionClient
+    override def packageClient: PackageClient = default.packageClient
+    override def acsClient: ActiveContractSetClient = default.acsClient
+    override def reflectionService: ServerReflectionGrpc.ServerReflectionStub = default.reflectionService
+    override def partyManagementService: PartyManagementService = default.partyManagementService
+    override def packageManagementService: PackageManagementService = default.packageManagementService
+    override def resetService: ResetService = default.resetService
+    override def reset()(implicit system: ActorSystem, mat: Materializer) = {
+      implicit val ec: ExecutionContext = mat.executionContext
+      default.reset().map(x => {
+        val newMapping = mapping.updated(defaultParty, x)
+        new MultiChannelContext(newMapping, defaultParty, _esf)
+      })
+    }
+
   }
 }
