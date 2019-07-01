@@ -160,9 +160,9 @@ def daml_deps():
     if "io_grpc_grpc_java" not in native.existing_rules():
         http_archive(
             name = "io_grpc_grpc_java",
-            strip_prefix = "grpc-java-1.19.0",
-            urls = ["https://github.com/grpc/grpc-java/archive/v1.19.0.tar.gz"],
-            sha256 = "81d1e12bf0f8bd1560eed7c75f24d8bb8e7368dcf07802586e439c85cf89b005",
+            strip_prefix = "grpc-java-1.21.0",
+            urls = ["https://github.com/grpc/grpc-java/archive/v1.21.0.tar.gz"],
+            sha256 = "9bc289e861c6118623fcb931044d843183c31d0e4d53fc43c4a32b56d6bb87fa",
         )
 
     if "com_github_johnynek_bazel_jar_jar" not in native.existing_rules():
