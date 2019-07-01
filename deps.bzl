@@ -87,8 +87,8 @@ def daml_deps():
     if "io_bazel_rules_go" not in native.existing_rules():
         http_archive(
             name = "io_bazel_rules_go",
-            urls = ["https://github.com/bazelbuild/rules_go/releases/download/0.17.0/rules_go-0.17.0.tar.gz"],
-            sha256 = "492c3ac68ed9dcf527a07e6a1b2dcbf199c6bf8b35517951467ac32e421c06c1",
+            urls = ["https://github.com/bazelbuild/rules_go/releases/download/0.18.6/rules_go-0.18.6.tar.gz"],
+            sha256 = "f04d2373bcaf8aa09bccb08a98a57e721306c8f6043a2a0ee610fd6853dcde3d",
         )
 
     if "io_bazel_rules_scala" not in native.existing_rules():
@@ -115,9 +115,9 @@ def daml_deps():
     if "io_bazel_skydoc" not in native.existing_rules():
         http_archive(
             name = "io_bazel_skydoc",
-            sha256 = "19eb6c162075707df5703c274d3348127625873dbfa5ff83b1ef4b8f5dbaa449",
-            strip_prefix = "skydoc-0.2.0",
-            urls = ["https://github.com/bazelbuild/skydoc/archive/0.2.0.tar.gz"],
+            sha256 = "c2d66a0cc7e25d857e480409a8004fdf09072a1bd564d6824441ab2f96448eea",
+            strip_prefix = "skydoc-0.3.0",
+            urls = ["https://github.com/bazelbuild/skydoc/archive/0.3.0.tar.gz"],
         )
 
     if "bazel_gazelle" not in native.existing_rules():
@@ -168,9 +168,9 @@ def daml_deps():
     if "com_github_johnynek_bazel_jar_jar" not in native.existing_rules():
         http_archive(
             name = "com_github_johnynek_bazel_jar_jar",
-            sha256 = "ee227e7f304e9b7f26d033af677f31066f68b1c94ee8f8d04fbecfb371c3caef",
-            strip_prefix = "bazel_jar_jar-16e48f319048e090a2fe7fd39a794312d191fc6f",
-            urls = ["https://github.com/johnynek/bazel_jar_jar/archive/16e48f319048e090a2fe7fd39a794312d191fc6f.zip"],  # Latest commit SHA as at 2019/02/13
+            sha256 = "841ae424eec3f322d411eb49d949622cc84787cb4189a30698fa9adadb98deac",
+            strip_prefix = "bazel_jar_jar-20dbf71f09b1c1c2a8575a42005a968b38805519",
+            urls = ["https://github.com/johnynek/bazel_jar_jar/archive/20dbf71f09b1c1c2a8575a42005a968b38805519.zip"],  # Latest commit SHA as at 2019/02/13
         )
 
     if "com_github_scalapb_scalapb" not in native.existing_rules():
@@ -206,9 +206,9 @@ java_import(
     if "com_github_bazelbuild_buildtools" not in native.existing_rules():
         http_archive(
             name = "com_github_bazelbuild_buildtools",
-            sha256 = "7525deb4d74e3aa4cb2b960da7d1c400257a324be4e497f75d265f2f508c518f",
-            strip_prefix = "buildtools-0.22.0",
-            url = "https://github.com/bazelbuild/buildtools/archive/0.22.0.tar.gz",
+            sha256 = "86592d703ecbe0c5cbb5139333a63268cf58d7efd2c459c8be8e69e77d135e29",
+            strip_prefix = "buildtools-0.26.0",
+            url = "https://github.com/bazelbuild/buildtools/archive/0.26.0.tar.gz",
         )
 
     c2hs_version = "0.28.3"
