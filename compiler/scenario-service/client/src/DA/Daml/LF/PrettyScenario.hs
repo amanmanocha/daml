@@ -366,21 +366,30 @@ prettyFailedAuthorization world (FailedAuthorization mbNodeId mbFa) =
           $$ "failed due missing signatories"
 
         Just (FailedAuthorizationSumLookupByKeyMissingAuthorization
-          (FailedAuthorization_LookupByKeyMissingAuthorization templateId mbLoc authParties maintainers)) ->
-         "lookup by key of" <-> prettyMay "<missing template id>" (prettyDefName world) templateId
-         <-> "at" <-> prettyMayLocation world mbLoc
-         $$
-            ("failed due to a missing authorization from"
-             <->
-             ( fcommasep
-             $ map (prettyParty . Party)
-             $ S.toList
-             $ S.fromList (mapV partyParty maintainers)
-               `S.difference`
-               S.fromList (mapV partyParty authParties)
-             )
-            )
-
+          (FailedAuthorization_LookupByKeyMissingAuthorization templateId mbLoc authParties maintainersList checkSubmitterIsInLookupMaintainers)) -> let
+            maintainers = S.fromList (mapV (Party . partyParty) maintainersList)
+            submitterNotInMaintainers = case checkSubmitterIsInLookupMaintainers of
+              Just (Party . partyParty -> submitter) -> do
+                guard (not (S.member submitter maintainers))
+                return submitter
+              Nothing -> Nothing
+            in
+             "lookup by key of" <-> prettyMay "<missing template id>" (prettyDefName world) templateId
+             <-> "at" <-> prettyMayLocation world mbLoc
+             $$
+                (case submitterNotInMaintainers of
+                  Just submitter ->
+                    "failed since the submitter" <-> prettyParty submitter <-> "is not in the maintainers" <->
+                      fcommasep (map prettyParty (S.toList maintainers))
+                  Nothing ->
+                    "failed due to a missing authorization from" <->
+                      ( fcommasep
+                      $ map prettyParty
+                      $ S.toList
+                      $ maintainers
+                       `S.difference`
+                       S.fromList (mapV (Party . partyParty) authParties)
+                      ))
 
         Nothing ->
           text "<missing failed_authorization>"

@@ -16,6 +16,7 @@ import com.digitalasset.daml.lf.transaction.{GenTransaction, Transaction}
 import com.digitalasset.daml.lf.transaction.Node._
 import com.digitalasset.daml.lf.value.Value._
 import com.digitalasset.daml.lf.speedy.{Command => SpeedyCommand}
+import com.digitalasset.daml.lf.language.LanguageVersion
 
 /**
   * Allows for evaluating [[Commands]] and validating [[Transaction]]s.
@@ -69,9 +70,26 @@ final class Engine {
     * This method does NOT perform authorization checks; ResultDone can contain a transaction that's not well-authorized.
     */
   def submit(cmds: Commands): Result[Transaction.Transaction] =
+    submitAndGetVersion(cmds).map(_._2)
+
+  /** Exactly like `sumbit`, but we also return the DAML-LF language version for the provided
+    * commands. See `CommandVersion` for more information.
+    */
+  def submitAndGetVersion(cmds: Commands): Result[(LanguageVersion, Transaction.Transaction)] =
     _commandTranslation
       .preprocessCommands(cmds)
-      .flatMap(interpret(Set(cmds.submitter), _, cmds.ledgerEffectiveTime))
+      .flatMap { processedCmds =>
+        // we have already preprocessed these commands -- we must be able to
+        // resolve all references.
+        def getPkg(pkgId: PackageId) = _compiledPackages.getPackage(pkgId) match {
+          case None =>
+            sys.error(
+              s"IMPOSSIBLE: we've already processed commands, but we couldn't compute commands version.")
+          case Some(pkg) => pkg
+        }
+        val lfVers = CommandVersion(getPkg).commandsVersion(cmds)
+        interpret(Set(cmds.submitter), processedCmds, cmds.ledgerEffectiveTime).map((lfVers, _))
+      }
 
   /**
     * Behaves like `submit`, but it takes GenNode arguments instead of a Commands argument.

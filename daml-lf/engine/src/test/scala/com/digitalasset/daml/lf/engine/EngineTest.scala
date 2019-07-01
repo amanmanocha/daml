@@ -20,6 +20,7 @@ import com.digitalasset.daml.lf.speedy.SValue
 import com.digitalasset.daml.lf.speedy.SValue._
 import com.digitalasset.daml.lf.command._
 import com.digitalasset.daml.lf.value.ValueVersions.assertAsVersionedValue
+import com.digitalasset.daml.lf.types.Ledger.Authorize
 import org.scalatest.{EitherValues, Matchers, WordSpec}
 import scalaz.std.either._
 import scalaz.syntax.apply._
@@ -545,7 +546,9 @@ class EngineTest extends WordSpec with Matchers with EitherValues with BazelRunf
 
     "events are collected" in {
       val Right(blindingInfo) =
-        Blinding.checkAuthorizationAndBlind(tx, Set(party))
+        Blinding.checkAuthorizationAndBlind(
+          tx,
+          Authorize.checkSubmitterIsInLookupMaintainers(party))
       val events = Event.collectEvents(tx, blindingInfo.explicitDisclosure)
       val partyEvents = events.events.values.toList.filter(_.witnesses contains party)
       partyEvents.size shouldBe 1
@@ -632,7 +635,9 @@ class EngineTest extends WordSpec with Matchers with EitherValues with BazelRunf
 
     "events are collected" in {
       val Right(blindingInfo) =
-        Blinding.checkAuthorizationAndBlind(tx, Set(alice))
+        Blinding.checkAuthorizationAndBlind(
+          tx,
+          Authorize.checkSubmitterIsInLookupMaintainers(alice))
       val events = Event.collectEvents(tx, blindingInfo.explicitDisclosure)
       val partyEvents = events.events.values.toList.filter(_.witnesses contains alice)
       partyEvents.size shouldBe 1
@@ -887,7 +892,7 @@ class EngineTest extends WordSpec with Matchers with EitherValues with BazelRunf
 
     val Right(tx) = interpretResult
     val Right(blindingInfo) =
-      Blinding.checkAuthorizationAndBlind(tx, Set(bob))
+      Blinding.checkAuthorizationAndBlind(tx, Authorize.checkSubmitterIsInLookupMaintainers(bob))
 
     "reinterpret to the same result" in {
       val txRoots = tx.roots.map(id => tx.nodes(id)).toSeq
@@ -949,7 +954,7 @@ class EngineTest extends WordSpec with Matchers with EitherValues with BazelRunf
     "events generated correctly" in {
       val Right(tx) = interpretResult
       val Right(blindingInfo) =
-        Blinding.checkAuthorizationAndBlind(tx, Set(bob))
+        Blinding.checkAuthorizationAndBlind(tx, Authorize.checkSubmitterIsInLookupMaintainers(bob))
       val events = Event.collectEvents(tx, blindingInfo.explicitDisclosure)
       val partyEvents = events.filter(_.witnesses contains bob)
       partyEvents.roots.length shouldBe 1

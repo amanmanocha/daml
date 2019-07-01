@@ -127,73 +127,94 @@ object Pretty {
   def prettyFailedAuthorizations(fas: L.FailedAuthorizations): Doc =
     intercalate(
       comma + space,
-      fas.toSeq.map {
-        // FIXME(JM): pretty-print all the parameters.
-        case (
-            nodeId,
-            L.FACreateMissingAuthorization(templateId @ _, optLoc @ _, authorizing, required)) =>
-          str(nodeId) & text(": missing authorization for create, authorizing parties:") &
-            intercalate(comma + space, authorizing.map(prettyParty)) +
-              text(", at least all of the following parties need to authorize:") &
-            intercalate(comma + space, required.map(prettyParty))
+      fas.toSeq
+        .map {
+          // FIXME(JM): pretty-print all the parameters.
+          case (
+              nodeId,
+              L.FACreateMissingAuthorization(templateId @ _, optLoc @ _, authorizing, required)) =>
+            str(nodeId) & text(": missing authorization for create, authorizing parties:") &
+              intercalate(comma + space, authorizing.map(prettyParty)) +
+                text(", at least all of the following parties need to authorize:") &
+              intercalate(comma + space, required.map(prettyParty))
 
-        case (
-            nodeId,
-            L.FAMaintainersNotSubsetOfSignatories(
-              templateId @ _,
-              optLoc @ _,
-              signatories,
-              maintainers)) =>
-          str(nodeId) & text(": all the maintainers:") &
-            intercalate(comma + space, maintainers.map(prettyParty)) +
-              text(", need to be signatories:") &
-            intercalate(comma + space, signatories.map(prettyParty))
+          case (
+              nodeId,
+              L.FAMaintainersNotSubsetOfSignatories(
+                templateId @ _,
+                optLoc @ _,
+                signatories,
+                maintainers)) =>
+            str(nodeId) & text(": all the maintainers:") &
+              intercalate(comma + space, maintainers.map(prettyParty)) +
+                text(", need to be signatories:") &
+              intercalate(comma + space, signatories.map(prettyParty))
 
-        case (
-            nodeId,
-            L.FAFetchMissingAuthorization(templateId @ _, optLoc @ _, authorizing, stakeholders)) =>
-          str(nodeId) & text(": missing authorization for fetch, authorizing parties:") &
-            intercalate(comma + space, authorizing.map(prettyParty)) +
-              text(", at least one of the following parties need to authorize:") &
-            intercalate(comma + space, stakeholders.map(prettyParty))
+          case (
+              nodeId,
+              L.FAFetchMissingAuthorization(
+                templateId @ _,
+                optLoc @ _,
+                authorizing,
+                stakeholders)) =>
+            str(nodeId) & text(": missing authorization for fetch, authorizing parties:") &
+              intercalate(comma + space, authorizing.map(prettyParty)) +
+                text(", at least one of the following parties need to authorize:") &
+              intercalate(comma + space, stakeholders.map(prettyParty))
 
-        case (
-            nodeId,
-            L.FAExerciseMissingAuthorization(
-              templateId @ _,
-              choiceId @ _,
-              optLoc @ _,
-              authorizing,
-              required)) =>
-          str(nodeId) & text(": missing authorization for exercise, authorizing parties:") &
-            intercalate(comma + space, authorizing.map(prettyParty)) +
-              text(", exactly the following parties need to authorize::") &
-            intercalate(comma + space, required.map(prettyParty))
+          case (
+              nodeId,
+              L.FAExerciseMissingAuthorization(
+                templateId @ _,
+                choiceId @ _,
+                optLoc @ _,
+                authorizing,
+                required)) =>
+            str(nodeId) & text(": missing authorization for exercise, authorizing parties:") &
+              intercalate(comma + space, authorizing.map(prettyParty)) +
+                text(", exactly the following parties need to authorize::") &
+              intercalate(comma + space, required.map(prettyParty))
 
-        case (nodeId, L.FAActorMismatch(templateId @ _, choiceId @ _, optLoc @ _, ctrls, actors)) =>
-          str(nodeId) + text(": actor mismatch, controllers:") &
-            intercalate(comma + space, ctrls.map(prettyParty)) &
-            text(", given actors:") &
-            intercalate(comma + space, actors.map(prettyParty))
+          case (
+              nodeId,
+              L.FAActorMismatch(templateId @ _, choiceId @ _, optLoc @ _, ctrls, actors)) =>
+            str(nodeId) + text(": actor mismatch, controllers:") &
+              intercalate(comma + space, ctrls.map(prettyParty)) &
+              text(", given actors:") &
+              intercalate(comma + space, actors.map(prettyParty))
 
-        case (nodeId, L.FANoSignatories(templateId, optLoc @ _)) =>
-          str(nodeId) + text(s": $templateId missing signatories")
+          case (nodeId, L.FANoSignatories(templateId, optLoc @ _)) =>
+            str(nodeId) + text(s": $templateId missing signatories")
 
-        case (nodeId, L.FANoControllers(templateId, choiceId, optLoc @ _)) =>
-          str(nodeId) + text(s": $templateId $choiceId missing controllers")
+          case (nodeId, L.FANoControllers(templateId, choiceId, optLoc @ _)) =>
+            str(nodeId) + text(s": $templateId $choiceId missing controllers")
 
-        case (
-            nodeId,
-            L.FALookupByKeyMissingAuthorization(
-              templateId @ _,
-              optLoc @ _,
-              maintainers,
-              authorizingParties)) =>
-          str(nodeId) + text(": missing authorization for lookup by key, authorizing parties:") &
-            intercalate(comma + space, authorizingParties.map(prettyParty)) +
-              text(" are not a superset of maintainers:") &
-            intercalate(comma + space, maintainers.map(prettyParty))
-      }
+          case (
+              nodeId,
+              L.FALookupByKeyMissingAuthorization(
+                templateId @ _,
+                optLoc @ _,
+                maintainers,
+                authorize)) =>
+            val submitterNotInMaintainers = authorize.checkSubmitterIsInLookupMaintainers match {
+              case None => None
+              case Some(submitter) if !maintainers.contains(submitter) => Some(submitter)
+              case Some(_) => None
+            }
+            submitterNotInMaintainers match {
+              case None =>
+                str(nodeId) + text(
+                  ": missing authorization for lookup by key, authorizing parties:") &
+                  intercalate(comma + space, authorize.authorizers.map(prettyParty)) +
+                    text(" are not a superset of maintainers:") &
+                  intercalate(comma + space, maintainers.map(prettyParty))
+              case Some(submitter) =>
+                str(nodeId) + text(": missing authorization for lookup by key, submitting party ") + prettyParty(
+                  submitter) &
+                  text("is not in maintainers") &
+                  intercalate(comma + space, maintainers.map(prettyParty))
+            }
+        }
     )
 
   def prettyValueRef(ref: ValueRef): Doc =

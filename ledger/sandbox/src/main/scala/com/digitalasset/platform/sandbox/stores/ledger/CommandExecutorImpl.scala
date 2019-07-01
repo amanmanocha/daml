@@ -17,6 +17,7 @@ import com.digitalasset.platform.sandbox.damle.SandboxDamle
 import scalaz.syntax.tag._
 import com.digitalasset.daml.lf.data.Ref.PackageId
 import com.digitalasset.daml.lf.language.Ast.Package
+import com.digitalasset.daml.lf.types.Ledger.Authorize
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -33,12 +34,14 @@ class CommandExecutorImpl(engine: Engine, getPackage: PackageId => Future[Option
       commands: Commands)
     : Future[Either[ErrorCause, (SubmitterInfo, TransactionMeta, Transaction.Transaction)]] = {
     SandboxDamle
-      .consume(engine.submit(commands))(getPackage, getContract, lookupKey)
+      .consume(engine.submitAndGetVersion(commands))(getPackage, getContract, lookupKey)
       .map { submission =>
         (for {
-          updateTx <- submission
+          lfVersAndUpdateTx <- submission
           blindingInfo <- Blinding
-            .checkAuthorizationAndBlind(updateTx, Set(submitter))
+            .checkAuthorizationAndBlind(
+              lfVersAndUpdateTx._2,
+              Authorize(Authorize.Submission, lfVersAndUpdateTx._1, submitter))
         } yield
           (
             SubmitterInfo(
@@ -51,7 +54,7 @@ class CommandExecutorImpl(engine: Engine, getPackage: PackageId => Future[Option
               submitted.ledgerEffectiveTime,
               submitted.workflowId.map(_.unwrap)
             ),
-            updateTx
+            lfVersAndUpdateTx._2
           )).left.map(ErrorCause.DamlLf)
       }
   }

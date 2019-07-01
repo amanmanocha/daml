@@ -376,7 +376,7 @@ abstract class CommandTransactionChecks
             "TriProposalAccept",
             emptyRecordValue,
             Code.INVALID_ARGUMENT,
-            "requires authorizers"
+            "requires submitter"
           )
         } yield {
           assertion

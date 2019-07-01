@@ -261,12 +261,15 @@ case class Conversions(homePackageId: Ref.PackageId) {
                 templateId,
                 optLocation,
                 maintainers,
-                authorizers) =>
+                authorize) =>
               val lbkmaBuilder =
                 FailedAuthorization.LookupByKeyMissingAuthorization.newBuilder
                   .setTemplateId(convertIdentifier(templateId))
                   .addAllMaintainers(maintainers.map(convertParty).asJava)
-                  .addAllAuthorizingParties(authorizers.map(convertParty).asJava)
+                  .addAllAuthorizingParties(authorize.authorizers.map(convertParty).asJava)
+              authorize.checkSubmitterIsInLookupMaintainers.foreach { p =>
+                lbkmaBuilder.setCheckSubmitterIsInLookupMaintainers(convertParty(p))
+              }
               optLocation.foreach(loc => lbkmaBuilder.setLocation(convertLocation(loc)))
               faBuilder.setLookupByKeyMissingAuthorization(lbkmaBuilder)
           }

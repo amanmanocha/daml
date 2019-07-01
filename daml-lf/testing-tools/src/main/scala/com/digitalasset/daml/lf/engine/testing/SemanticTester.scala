@@ -21,6 +21,7 @@ import com.digitalasset.daml.lf.value.Value.{
   ContractInst,
   RelativeContractId
 }
+import com.digitalasset.daml.lf.engine.CommandVersion
 
 import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
@@ -62,7 +63,8 @@ class SemanticTester(
           case (name, DValue(_, _, body, isTest)) if isTest =>
             val qualifiedName = QualifiedName(module.name, name)
             val machine = buildMachine(body)
-            ScenarioRunner(machine, partyNameMangler = partyNameMangler).run() match {
+            ScenarioRunner(module.languageVersion, machine, partyNameMangler = partyNameMangler)
+              .run() match {
               case Left((err, _ledger @ _)) =>
                 sys.error(s"error running scenario $err in scenario: $qualifiedName")
               case Right((_time @ _, _steps @ _, ledger)) =>
@@ -469,9 +471,12 @@ object SemanticTester {
         cmds.submitter == submitterName,
         s"submitter and the commands submitter don't match: $submitterName, ${cmds.submitter}")
       val tx = consumeResult(cmds.commandsReference, engine.submit(cmds))
+      val lfVers = CommandVersion(packages.apply(_)).commandsVersion(cmds)
       val blindingInfo =
         Blinding
-          .checkAuthorizationAndBlind(tx, Set(submitterName))
+          .checkAuthorizationAndBlind(
+            tx,
+            L.Authorize(L.Authorize.Submission, lfVers, submitterName))
           .toOption
           .getOrElse(sys.error(s"authorization failed for ${cmds.commandsReference}"))
       val absTx = tx.mapContractIdAndValue(makeAbsoluteContractId, makeValueWithAbsoluteContractId)

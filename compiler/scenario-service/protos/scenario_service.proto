@@ -443,6 +443,7 @@ message FailedAuthorization {
     Location location = 2; // optional
     repeated Party authorizing_parties = 3;
     repeated Party maintainers = 4;
+    Party check_submitter_is_in_lookup_maintainers = 5; // optional
   }
 
   message MaintainersNotSubsetOfSignatories {

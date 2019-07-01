@@ -45,7 +45,18 @@ object Blinding {
               case ns: FANoSignatories =>
                 s"node $id (${ns.templateId}) has no signatories"
               case nlbk: FALookupByKeyMissingAuthorization =>
-                s"node $id (${nlbk.templateId}) requires authorizers ${nlbk.maintainers} for lookup by key, but it only has ${nlbk.authorizingParties}"
+                val submitterNotInMaintainers =
+                  nlbk.authorize.checkSubmitterIsInLookupMaintainers match {
+                    case None => None
+                    case Some(submitter) if !nlbk.maintainers.contains(submitter) => Some(submitter)
+                    case Some(_) => None
+                  }
+                submitterNotInMaintainers match {
+                  case None =>
+                    s"node $id (${nlbk.templateId}) requires authorizers ${nlbk.maintainers} for lookup by key, but it only has ${nlbk.authorize.authorizers}"
+                  case Some(submitter) =>
+                    s"node $id (${nlbk.templateId}) requires submitter ${submitter} to be in maintainers ${nlbk.maintainers}"
+                }
               case mns: FAMaintainersNotSubsetOfSignatories =>
                 s"node $id (${mns.templateId}) has maintainers ${mns.maintainers} which are not a subset of the signatories ${mns.signatories}"
 
@@ -80,8 +91,9 @@ object Blinding {
     */
   def checkAuthorizationAndBlind(
       tx: Transaction.Transaction,
-      initialAuthorizers: Set[Party]): Either[AuthorizationError, BlindingInfo] =
-    maybeAuthorizeAndBlind(tx, Authorize(initialAuthorizers))
+      authorize: Authorize,
+  ): Either[AuthorizationError, BlindingInfo] =
+    maybeAuthorizeAndBlind(tx, authorize)
 
   /**
     * Like checkAuthorizationAndBlind, but does not authorize the transaction, just blinds it.

@@ -10,6 +10,8 @@ import com.digitalasset.daml.lf.transaction.Transaction
 import com.digitalasset.daml.lf.value.Value
 import Value._
 import com.digitalasset.daml.lf.data.Relation.Relation
+import com.digitalasset.daml.lf.language.LanguageVersion
+import com.digitalasset.daml.lf.transaction.VersionTimeline
 
 import scala.annotation.tailrec
 import scala.collection.generic.CanBuildFrom
@@ -435,6 +437,8 @@ object Ledger {
     * update-expression at time `effectiveAt`.
     */
   def commitTransaction(
+      /** The DAML-LF version of the scenario committing this transaction. */
+      languageVersion: LanguageVersion,
       committer: Party,
       effectiveAt: Time.Timestamp,
       optLocation: Option[Location],
@@ -448,7 +452,8 @@ object Ledger {
         commitPrefix,
         committer,
         effectiveAt,
-        enrichTransaction(Authorize(Set(committer)), tr))
+        enrichTransaction(Authorize(Authorize.Submission, languageVersion, committer), tr),
+      )
     if (richTr.failedAuthorizations.nonEmpty)
       Left(CommitError.FailedAuthorizations(richTr.failedAuthorizations))
     else {
@@ -555,7 +560,7 @@ object Ledger {
       templateId: Identifier,
       optLocation: Option[Location],
       maintainers: Set[Party],
-      authorizingParties: Set[Party]
+      authorize: Authorize,
   ) extends FailedAuthorization
 
   /** State to use during enriching a transaction with disclosure information. */
@@ -617,15 +622,15 @@ object Ledger {
         authorization: Authorization,
         /** If the create has a key, these are the maintainers */
         mbMaintainers: Option[Set[Party]]): EnrichState =
-      authorization.fold(this)(authParties => {
+      authorization.fold(this)(authInfo => {
         val auth = this
           .authorize(
             nodeId = nodeId,
-            passIf = signatories subsetOf authParties,
+            passIf = signatories subsetOf authInfo.authorizers,
             failWith = FACreateMissingAuthorization(
               templateId = create.coinst.template,
               optLocation = create.optLocation,
-              authorizingParties = authParties,
+              authorizingParties = authInfo.authorizers,
               requiredParties = signatories)
           )
           .authorize(
@@ -659,7 +664,7 @@ object Ledger {
       //                           (signatories(c) union controllers(c))
 
       authorization.fold(this)(
-        authParties =>
+        authInfo =>
           this
             .authorize(
               nodeId = nodeId,
@@ -677,12 +682,12 @@ object Ledger {
             )
             .authorize(
               nodeId = nodeId,
-              passIf = actingParties subsetOf authParties,
+              passIf = actingParties subsetOf authInfo.authorizers,
               failWith = FAExerciseMissingAuthorization(
                 templateId = ex.templateId,
                 choiceId = ex.choiceId,
                 optLocation = ex.optLocation,
-                authorizingParties = authParties,
+                authorizingParties = authInfo.authorizers,
                 requiredParties = actingParties)
           ))
     }
@@ -693,19 +698,21 @@ object Ledger {
         stakeholders: Set[Party],
         authorization: Authorization): EnrichState = {
       authorization.fold(this)(
-        authParties =>
+        authInfo =>
           this.authorize(
             nodeId = nodeId,
-            passIf = stakeholders.intersect(authParties).nonEmpty,
+            passIf = stakeholders.intersect(authInfo.authorizers).nonEmpty,
             failWith = FAFetchMissingAuthorization(
               templateId = fetch.templateId,
               optLocation = fetch.optLocation,
               stakeholders = stakeholders,
-              authorizingParties = authParties)
+              authorizingParties = authInfo.authorizers)
         ))
     }
 
     /*
+      # "Local" authorization rule
+
       If we have `authorizers` and lookup node with maintainers
       `maintainers`, we have three options:
 
@@ -724,8 +731,8 @@ object Ledger {
            to look up a contract by key if you're an observer but not a
            signatory.
 
-         - However, this is problematic since lookups will induce work for
-     *all* maintainers even if only a subset of the maintainers have
+         - However, this is problematic since lookups will induce work for *all*
+           maintainers even if only a subset of the maintainers have
            authorized it, violating the tenet that nobody can be forced to
            perform work.
 
@@ -763,10 +770,9 @@ object Ledger {
            re-interpreting the transaction.
 
            Francesco: yes, but there is a key difference: the above scenario
-           requires a malicious (or at the very least negligent / defective)
-     *participant*, while in this case we are talking about malicious
-     *code* being able to induce work. So the "thread model" is quite
-           different.
+           requires a malicious (or at the very least negligent / defective) *participant*,
+           while in this case we are talking about malicious *code* being
+           able to induce work. So the "thread model" is quite different.
 
       To be able to make a statement of non-existence of a key, it's clear
       that we must authorize against the maintainers, and not the
@@ -775,20 +781,31 @@ object Ledger {
       On the other hand, when making a positive statement, we can use the
       same authorization rule that we use for fetch -- that is, we check
       that `authorizers ∩ stakeholders ≠ ∅`.
+
+      # "Global" authorization rule
+
+      Moreover, we also restrict the transaction submitter to be one of the maintainers.
+      See <https://github.com/digital-asset/daml/issues/1866> for in-depth
+      discussion.
      */
     def authorizeLookupByKey(
         nodeId: Transaction.NodeId,
         lbk: NodeLookupByKey.WithTxValue[ContractId],
         authorization: Authorization): EnrichState = {
-      authorization.fold(this) { authorizers =>
+      authorization.fold(this) { authInfo =>
+        val localAuth = lbk.key.maintainers subsetOf authInfo.authorizers
+        val globalAuth = authInfo.checkSubmitterIsInLookupMaintainers match {
+          case None => true
+          case Some(submitter) => lbk.key.maintainers.contains(submitter)
+        }
         this.authorize(
           nodeId = nodeId,
-          passIf = lbk.key.maintainers subsetOf authorizers,
+          passIf = localAuth && globalAuth,
           failWith = FALookupByKeyMissingAuthorization(
             lbk.templateId,
             lbk.optLocation,
             lbk.key.maintainers,
-            authorizers),
+            authInfo)
         )
       }
     }
@@ -800,15 +817,15 @@ object Ledger {
   }
 
   sealed trait Authorization {
-    def fold[A](ifDontAuthorize: A)(ifAuthorize: Set[Party] => A): A =
+    def fold[A](ifDontAuthorize: A)(ifAuthorize: Authorize => A): A =
       this match {
         case DontAuthorize => ifDontAuthorize
-        case Authorize(authorizers) => ifAuthorize(authorizers)
+        case auth: Authorize => ifAuthorize(auth)
       }
 
-    def map(f: Set[Party] => Set[Party]): Authorization = this match {
+    def map(f: Authorize => Authorize): Authorization = this match {
       case DontAuthorize => DontAuthorize
-      case Authorize(parties) => Authorize(f(parties))
+      case auth: Authorize => f(auth)
     }
   }
 
@@ -816,7 +833,59 @@ object Ledger {
   case object DontAuthorize extends Authorization
 
   /** Authorize the transaction using the provided parties as initial authorizers for the dynamic authorization. */
-  final case class Authorize(authorizers: Set[Party]) extends Authorization
+  final class Authorize private (
+      /** If this field is present, we'll check that the maintainers of each
+        * lookup by key contain the transaction submitter. See
+        * <https://github.com/digital-asset/daml/issues/1866>.
+        */
+      val checkSubmitterIsInLookupMaintainers: Option[Party],
+      val authorizers: Set[Party]
+  ) extends Authorization {
+    def updateAuthorizers(authorizers: Set[Party]): Authorize =
+      new Authorize(checkSubmitterIsInLookupMaintainers, authorizers)
+  }
+
+  object Authorize {
+
+    /** Some check are dependent on whether we are submitting or validating the transaction,
+      * most importantly the key lookup submitter check.
+      * See <https://github.com/digital-asset/daml/issues/1866#issuecomment-506315152>,
+      * specifically "Consequently it suffices to implement this check
+      * only for the submission. There is no intention to enforce "submitter
+      * must be a maintainer" during validation; if we find in the future a
+      * way to disclose key information or support interactive submission,
+      * then we can lift this restriction without changing the validation
+      * parts. In particular, this should not affect whether we have to ship
+      * the submitter along with the transaction."
+      */
+    sealed trait Context
+    case object Submission extends Context
+    case object Validation extends Context
+
+    /** Only check that submitter is in lookup maintainers
+      * if the version is late enough, and if we're submitting (see `Authorize.Context`)
+      */
+    def apply(context: Context, languageVersion: LanguageVersion, submitter: Party): Authorize = {
+      import VersionTimeline.Implicits._
+      context match {
+        case Validation => dontCheckSubmitterIsInLookupMaintainers(submitter)
+        case Submission =>
+          if (languageVersion precedes LanguageVersion.checkSubmitterIsInLookupMaintainers) {
+            dontCheckSubmitterIsInLookupMaintainers(submitter)
+          } else {
+            checkSubmitterIsInLookupMaintainers(submitter)
+          }
+      }
+    }
+
+    /** Note: only used for unit testing, you most likely want to use [[Authorize#apply]]. */
+    def checkSubmitterIsInLookupMaintainers(submitter: Party): Authorize =
+      new Authorize(Some(submitter), Set(submitter))
+
+    /** Note: only used for unit testing, you most likely want to use [[Authorize#apply]]. */
+    def dontCheckSubmitterIsInLookupMaintainers(submitter: Party): Authorize =
+      new Authorize(None, Set(submitter))
+  }
 
   /** Enrich a transaction with disclosure and authorization information.
     *
@@ -915,7 +984,7 @@ object Ledger {
             enrichNode(
               s,
               witnesses,
-              authorization.map(_ => ex.controllers union ex.signatories),
+              authorization.map(_.updateAuthorizers(ex.controllers union ex.signatories)),
               childNodeId)
           }
 

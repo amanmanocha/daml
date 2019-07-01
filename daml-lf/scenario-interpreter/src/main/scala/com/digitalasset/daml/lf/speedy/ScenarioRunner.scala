@@ -12,6 +12,7 @@ import com.digitalasset.daml.lf.value.Value.{AbsoluteContractId, ContractInst}
 import com.digitalasset.daml.lf.speedy.SError._
 import com.digitalasset.daml.lf.speedy.SResult._
 import com.digitalasset.daml.lf.transaction.Node.GlobalKey
+import com.digitalasset.daml.lf.language.LanguageVersion
 
 private case class SRunnerException(err: SError) extends RuntimeException(err.toString)
 
@@ -25,6 +26,7 @@ private case class SRunnerException(err: SError) extends RuntimeException(err.to
   *        with [[com.digitalasset.daml.lf.data.Ref.Party]].
   */
 final case class ScenarioRunner(
+    languageVersion: LanguageVersion,
     machine: Speedy.Machine,
     partyNameMangler: (String => String) = identity) {
   var ledger: Ledger = Ledger.initialLedger(Time.Timestamp.Epoch)
@@ -115,7 +117,8 @@ final case class ScenarioRunner(
           effectiveAt = ledger.currentTime,
           optLocation = machine.commitLocation,
           tr = tx,
-          l = ledger)
+          l = ledger,
+          languageVersion = languageVersion)
         .isRight) {
       throw SRunnerException(ScenarioErrorMustFailSucceeded(tx))
     }
@@ -135,7 +138,8 @@ final case class ScenarioRunner(
       effectiveAt = ledger.currentTime,
       optLocation = machine.commitLocation,
       tr = tx,
-      l = ledger
+      l = ledger,
+      languageVersion = languageVersion,
     ) match {
       case Left(fas) =>
         throw SRunnerException(ScenarioErrorCommitError(fas))

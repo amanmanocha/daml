@@ -28,6 +28,8 @@ import com.digitalasset.ledger.api.domain.{LedgerId => ApiLedgerId}
 import com.digitalasset.ledger.api.domain.{Commands => ApiCommands}
 import com.digitalasset.ledger.api.messages.command.submission.SubmitRequest
 import com.digitalasset.platform.server.api.services.domain.CommandSubmissionService
+import com.digitalasset.daml.lf.types.Ledger.Authorize
+
 import com.digitalasset.platform.server.api.services.grpc.GrpcCommandSubmissionService
 import com.digitalasset.platform.server.api.validation.{ErrorFactories, IdentifierResolver}
 import com.digitalasset.ledger.api.v1.command_submission_service.{
@@ -118,18 +120,18 @@ class DamlOnXSubmissionService private (
     val getContract =
       (coid: AbsoluteContractId) => indexService.lookupActiveContract(commands.submitter, coid)
 
-    consume(engine.submit(commands.commands))(getPackage, getContract)
+    consume(engine.submitAndGetVersion(commands.commands))(getPackage, getContract)
       .flatMap {
         case Left(err) =>
           Future.failed(invalidArgument("error: " + err.detailMsg))
 
-        case Right(updateTx) =>
+        case Right((lfVers, updateTx)) =>
           // NOTE(JM): Authorizing the transaction here so that we do not submit
           // malformed transactions. A side-effect is that we compute blinding info
           // but we don't actually use that for anything.
           Blinding.checkAuthorizationAndBlind(
             updateTx,
-            Set(Ref.Party.assertFromString(commands.submitter))) match {
+            Authorize(Authorize.Submission, lfVers, Ref.Party.assertFromString(commands.submitter))) match {
             case Left(err) =>
               Future.failed(invalidArgument("error: " + err.toString))
 
