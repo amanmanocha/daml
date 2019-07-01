@@ -30,6 +30,8 @@ HEAD — ongoing
   + new builtins for (un)packing strings. See `#16 <https://github.com/digital-asset/daml/issues/16>`__.
   + intern package IDs. See `#1614 <https://github.com/digital-asset/daml/pull/1614>`__.
 
+- [Ledger API] Add support for ``enum`` types.
+
 - [Java Codegen]: Add support for ``enum`` types.
 
 - [Scala Codegen]: Add support for ``enum`` types.
@@ -38,4 +40,7 @@ HEAD — ongoing
 
 - [Extractor]: Add support for ``enum`` types.
 
-- [DAML Compiler]: Add support for DAML-LF 1.6.
+- [DAML Compiler]: Add support for DAML-LF 1.6. DAML variants type that look
+  like enumerations (i.e., those variants without type parameters and without
+  argument) are compiled to DAML-LF ``enum`` type when daml-lf 1.6 target is
+  selected.
