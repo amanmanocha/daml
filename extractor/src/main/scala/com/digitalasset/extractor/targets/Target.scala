@@ -5,6 +5,7 @@ package com.digitalasset.extractor.targets
 
 sealed abstract class Target
 final case class PostgreSQLTarget(
+    driver: String,
     connectUrl: String,
     user: String,
     password: String,
@@ -12,6 +13,11 @@ final case class PostgreSQLTarget(
     schemaPerPackage: Boolean,
     mergeIdentical: Boolean,
     stripPrefix: Option[String]
+) extends Target
+final case class MSSQLTarget(
+     connectUrl: String,
+     user: String,
+     password: String
 ) extends Target
 final case object TextPrintTarget extends Target
 final case class PrettyPrintTarget(width: Int, height: Int) extends Target

@@ -17,8 +17,8 @@ import doobie.free.connection.ConnectionIO
 import scalaz._, Scalaz._
 
 class SingleTableDataFormat extends DataFormat[SingleTableState.type] {
-  import Queries._
-  import Queries.SingleTable._
+  import MSSQLQueries._
+  import MSSQLQueries.SingleTable._
 
   def init(): ConnectionIO[Unit] = {
     dropContractsTable.update.run *>

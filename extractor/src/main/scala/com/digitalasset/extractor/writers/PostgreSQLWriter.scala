@@ -33,7 +33,7 @@ class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledger
   // Uncomment this to have queries logged
   // implicit val lh = doobie.util.log.LogHandler.jdkLogHandler
 
-  import postgresql.Queries._
+  import postgresql.MSSQLQueries._
 
   implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
@@ -53,7 +53,7 @@ class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledger
 
   // A transactor that gets connections from java.sql.DriverManager
   private val xa = Transactor.fromDriverManager[IO](
-    "org.postgresql.Driver", // driver classname
+    target.driver, // driver classname
     target.connectUrl, // connect URL (driver-specific)
     target.user,
     target.password

@@ -44,6 +44,7 @@ trait ExtractorFixture extends SandboxFixture with PostgresAround with Types {
   protected def configureExtractor(ec: ExtractorConfig): ExtractorConfig = ec
 
   protected def target: PostgreSQLTarget = PostgreSQLTarget(
+    driver = "org.postgresql.Driver",
     connectUrl = postgresFixture.jdbcUrl,
     user = "test",
     password = "",

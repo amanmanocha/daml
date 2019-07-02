@@ -28,8 +28,8 @@ class MultiTableDataFormat(
     mergeIdentical: Boolean,
     stripPrefix: Option[String]
 ) extends DataFormat[MultiTableState] {
-  import Queries._
-  import Queries.MultiTable._
+  import MSSQLQueries._
+  import MSSQLQueries.MultiTable._
 
   // schema name for contract tables when not using separate schemas per package
   private val singleSchemaName = "template"

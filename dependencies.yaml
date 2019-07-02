@@ -289,6 +289,11 @@ dependencies:
       lang: java
       version: "9.4.1212"
 
+  com.microsoft.sqlserver:
+    mssql-jdbc:
+      lang: java
+      version: "6.2.2.jre8"
+
   io.spray:
     spray-json:
       lang: scala

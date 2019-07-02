@@ -31,13 +31,14 @@ object ConfigParser {
       target: CliTarget = PrettyPrint,
       pprintWidth: Int = 200,
       pprintHeight: Int = 1200,
-      postgresConnectUrl: String = "",
-      postgresUser: String = "",
-      postgresPassword: String = "",
-      postgresOutputFormat: String = "single-table",
-      postgresMultiTableUseSchemes: Boolean = false,
-      postgresMultiTableMergeIdentical: Boolean = false,
-      postgresStripPrefix: Option[String] = None,
+      driver:String = "",
+      connectUrl: String = "",
+      user: String = "",
+      password: String = "",
+      outputFormat: String = "single-table",
+      multiTableUseSchemes: Boolean = false,
+      multiTableMergeIdentical: Boolean = false,
+      stripPrefix: Option[String] = None,
       ledgerHost: String = "127.0.0.1",
       ledgerPort: Int = 6865,
       ledgerInboundMessageSizeMax: Int = 50 * 1024 * 1024, // 50 MiBytes
@@ -91,6 +92,7 @@ object ConfigParser {
       cmd("postgresql")
         .text("Extract data into a PostgreSQL database.")
         .action((_, c) => c.copy(target = PostgreSQL))
+        .action((_, c) => c.copy(driver = "org.postgresql.Driver"))
         .children(
           opt[String]("connecturl")
             .text(
@@ -98,19 +100,19 @@ object ConfigParser {
                 s"${colSpacer}visit https://jdbc.postgresql.org/documentation/80/connect.html"
             )
             .required()
-            .action((x, c) => c.copy(postgresConnectUrl = x)),
+            .action((x, c) => c.copy(connectUrl = x)),
           opt[String]("user")
             .text(
               "The database user on whose behalf the connection is being made."
             )
             .required()
-            .action((x, c) => c.copy(postgresUser = x)),
+            .action((x, c) => c.copy(user = x)),
           opt[String]("password")
             .text(
               "The user's password. Optional."
             )
             .optional()
-            .action((x, c) => c.copy(postgresPassword = x)),
+            .action((x, c) => c.copy(password = x)),
           opt[String]("output-format")
             .optional()
             .hidden()
@@ -124,7 +126,7 @@ object ConfigParser {
                 )
             }
             .valueName("<single-table|multi-table|combined>")
-            .action((s, c) => c.copy(postgresOutputFormat = s))
+            .action((s, c) => c.copy(outputFormat = s))
             .text(
               s"""Format of the extracted data in the database. One of "single-table", "multi-table" or "combined".\n""" +
                 s"""${colSpacer}"single-table" = All contracts are put into a JSON encoded column of the same table.\n""" +
@@ -136,7 +138,7 @@ object ConfigParser {
             .optional()
             .hidden()
             .valueName("<true|false>")
-            .action((x, c) => c.copy(postgresMultiTableUseSchemes = x))
+            .action((x, c) => c.copy(multiTableUseSchemes = x))
             .text(
               "Whether to put contacts of separate packages into separate schemes. Optional, default is false."
             ),
@@ -144,7 +146,7 @@ object ConfigParser {
             .optional()
             .hidden()
             .valueName("<true|false>")
-            .action((x, c) => c.copy(postgresMultiTableMergeIdentical = x))
+            .action((x, c) => c.copy(multiTableMergeIdentical = x))
             .text(
               "Whether to merge identical templates of separate packages into the same table.\n" +
                 s"${colSpacer}Optional, default is false."
@@ -153,11 +155,46 @@ object ConfigParser {
             .optional()
             .hidden()
             .valueName("<value>")
-            .action((x, c) => c.copy(postgresStripPrefix = Some(x)))
+            .action((x, c) => c.copy(stripPrefix = Some(x)))
             .text(
               "Parts of template names to cut from the beginning when using the multi-table strategy\n" +
                 s"${colSpacer}Optional."
             )
+        )
+
+      cmd("mssql")
+        .text("Extract data into a MSSQL database.")
+        .action((_, c) => c.copy(target = PostgreSQL))
+        .action((_, c) => c.copy(driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"))
+        .children(
+          opt[String]("connecturl")
+            .text(
+              "Connection url for the `com.microsoft.sqlserver.jdbc.SQLServerDriver` driver. For examples,\n" +
+                s"${colSpacer}visit https://docs.microsoft.com/en-us/sql/connect/jdbc/using-the-jdbc-driver?view=sql-server-2017"
+            )
+            .required()
+            .action((x, c) => c.copy(connectUrl = x)),
+          opt[String]("user")
+            .text(
+              "The database user on whose behalf the connection is being made."
+            )
+            .required()
+            .action((x, c) => c.copy(user = x)),
+          opt[String]("password")
+            .text(
+              "The user's password. Optional."
+            )
+            .optional()
+            .action((x, c) => c.copy(password = x)),
+          opt[Boolean]("merge-identical")
+            .optional()
+            .hidden()
+            .valueName("<true|false>")
+            .action((x, c) => c.copy(multiTableMergeIdentical = x))
+            .text(
+              "Whether to merge identical templates of separate packages into the same table.\n" +
+                s"${colSpacer}Optional, default is false."
+            ),
         )
 
       note("\nCommon options:\n")
@@ -245,16 +282,16 @@ object ConfigParser {
         }
 
       checkConfig { c =>
-        if (c.postgresMultiTableUseSchemes && !List("multi-table", "combined").contains(
-            c.postgresOutputFormat)) {
+        if (c.multiTableUseSchemes && !List("multi-table", "combined").contains(
+            c.outputFormat)) {
           failure(
             "\n`--schema-per-package` was set `true`, while the data format strategy wasn't set to\n" +
               "use separate tables per contract. This setting won't have any effects.\n" +
               "Change the `--output-format` parameter to \"multi-table\" or \"combined\" to have a multi-table setup,\n" +
               "or remove this parameter.\n"
           )
-        } else if (c.postgresMultiTableMergeIdentical && !List("multi-table", "combined").contains(
-            c.postgresOutputFormat
+        } else if (c.multiTableMergeIdentical && !List("multi-table", "combined").contains(
+            c.outputFormat
           )) {
           failure(
             "\n`--merge-identical` was set `true`, while the data format strategy wasn't set to\n" +
@@ -262,7 +299,7 @@ object ConfigParser {
               "Change the `--output-format` parameter to \"multi-table\" or \"combined\" to have a multi-table setup,\n" +
               "or remove this parameter.\n"
           )
-        } else if (c.postgresMultiTableMergeIdentical && c.postgresMultiTableUseSchemes) {
+        } else if (c.multiTableMergeIdentical && c.multiTableUseSchemes) {
           failure(
             "\nBoth `--merge-identical` and `--schema-per-package` parameter are set to `true`.\n" +
               "Pick at most one of those.\n"
@@ -311,13 +348,14 @@ object ConfigParser {
         case PrettyPrint => PrettyPrintTarget(cliParams.pprintWidth, cliParams.pprintHeight)
         case PostgreSQL =>
           PostgreSQLTarget(
-            cliParams.postgresConnectUrl,
-            cliParams.postgresUser,
-            cliParams.postgresPassword,
-            cliParams.postgresOutputFormat,
-            cliParams.postgresMultiTableUseSchemes,
-            cliParams.postgresMultiTableMergeIdentical,
-            cliParams.postgresStripPrefix
+            cliParams.driver,
+            cliParams.connectUrl,
+            cliParams.user,
+            cliParams.password,
+            cliParams.outputFormat,
+            cliParams.multiTableUseSchemes,
+            cliParams.multiTableMergeIdentical,
+            cliParams.stripPrefix
           )
       }
 

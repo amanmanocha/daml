@@ -52,7 +52,7 @@ object StateHandler {
     "witnessedPackages"
   )(Status.apply)
 
-  import Queries._
+  import MSSQLQueries._
 
   // The version of the state we're currently support.
   // Might change over time, so it's better to version it
