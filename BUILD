@@ -10,7 +10,7 @@ load(
     "c2hs_toolchain",
 )
 load("//bazel_tools:haskell.bzl", "da_haskell_library", "da_haskell_repl")
-load("@os_info//:os_info.bzl", "is_windows")
+load("@os_info//:os_info.bzl", "is_darwin", "is_windows")
 
 exports_files([".hlint.yaml"])
 
@@ -69,6 +69,9 @@ py_runtime_pair(
 
 toolchain(
     name = "nix_python_toolchain",
+    exec_compatible_with = [
+        "@io_tweag_rules_haskell//haskell/platforms:nixpkgs",
+    ],
     toolchain = ":nix_python_runtime_pair",
     toolchain_type = "@bazel_tools//tools/python:toolchain_type",
 )
