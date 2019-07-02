@@ -114,7 +114,7 @@ def _collect_maven_info_impl(_target, ctx):
     deps = depset([], transitive = [depset([d]) for d in _maven_coordinates(deps + exports + jars)])
     filtered_deps = [
         d
-        for d in deps
+        for d in deps.to_list()
         if not (only_external_deps and (d.split(":")[0].startswith("com.daml") or
                                         d.split(":")[0].startswith("com.digitalasset")))
     ]
@@ -184,7 +184,7 @@ def _pom_file(ctx):
     version = maven_coordinates[2]
 
     formatted_deps = []
-    for dep in [":".join(d) for d in sorted([d.split(":") for d in mvn_deps])]:
+    for dep in [":".join(d) for d in sorted([d.split(":") for d in mvn_deps.to_list()])]:
         parts = dep.split(":")
         if len(parts) == 3:
             template = DEP_BLOCK
