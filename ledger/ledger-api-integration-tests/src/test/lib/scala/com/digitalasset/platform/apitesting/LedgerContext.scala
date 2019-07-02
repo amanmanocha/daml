@@ -95,7 +95,10 @@ trait LedgerContext {
   /** Default forParty implementation */
   final def default: LedgerContext = forParty(None)
   final def forParty(party: Party): LedgerContext = forParty(Some(party))
-  def forParty(party: Option[Party]): LedgerContext = this
+  def forParty(party: Option[Party]): LedgerContext = {
+    // println(s"GETTING LedgerContext for ${party}")
+    this
+  }
 
   /**
     * resetService is protected on purpose, to disallow moving an instance of LedgerContext into an invalid state,

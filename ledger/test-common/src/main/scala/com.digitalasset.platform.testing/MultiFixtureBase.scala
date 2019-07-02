@@ -95,8 +95,10 @@ trait MultiFixtureBase[FixtureId, TestContext]
   }
 
   /** Same as forAllFixtures, nicer to use with the "test" in allFixtures { ctx => ??? } syntax */
-  protected def allFixtures(runTest: TestContext => Future[Assertion]): Future[Assertion] =
+  protected def allFixtures(runTest: TestContext => Future[Assertion]): Future[Assertion] = {
+    println("XXX")
     forAllFixtures(fixture => runTest(fixture.context))
+  }
 
   protected def forAllFixtures(runTest: TestFixture => Future[Assertion]): Future[Assertion] = {
     forAllMatchingFixtures { case f => runTest(f) }
@@ -104,6 +106,7 @@ trait MultiFixtureBase[FixtureId, TestContext]
 
   protected def forAllMatchingFixtures(
       runTest: PartialFunction[TestFixture, Future[Assertion]]): Future[Assertion] = {
+    println(s"Detected fixtures: ${fixtures}")
     @SuppressWarnings(Array("org.wartremover.warts.ExplicitImplicitTypes"))
     implicit val ec = global
     if (parallelExecution) {

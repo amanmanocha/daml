@@ -75,6 +75,7 @@ object LedgerApiTestTool {
         else toolConfig.included
 
       val testsToRun = includedTests.filterNot(toolConfig.excluded)
+      println(s"Running tests: ${testsToRun}")
 
       if (testsToRun.isEmpty) {
         println("No tests to run.")
@@ -92,6 +93,7 @@ object LedgerApiTestTool {
         }
 
       testsToRun.foreach { suiteName =>
+        println(s"Running ${suiteName}")
         try {
           allTests(suiteName)()
             .run(None, Args(reporter = reporter, distributedTestSorter = Some(sorter)))
@@ -219,7 +221,10 @@ object LedgerApiTestTool {
   }
 
   def lazyInit[A](name: String, factory: String => A): (String, () => A) = {
-    (name, () => factory(name))
+    (name, () => {
+      println(s"Init ${name}")
+      factory(name)
+    })
   }
 
   private def resourceAsFile(testResource: String): Path = {

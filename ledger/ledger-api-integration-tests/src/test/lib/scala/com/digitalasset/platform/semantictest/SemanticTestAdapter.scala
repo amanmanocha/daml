@@ -17,6 +17,7 @@ import com.digitalasset.daml.lf.transaction.Transaction.{Value => TxValue}
 import com.digitalasset.daml.lf.value.Value
 import com.digitalasset.grpc.adapter.ExecutionSequencerFactory
 import com.digitalasset.grpc.adapter.client.akka.ClientAdapter
+import com.digitalasset.ledger.api.v1.command_service.SubmitAndWaitRequest
 import com.digitalasset.ledger.api.v1.command_submission_service.SubmitRequest
 import com.digitalasset.ledger.api.v1.testing.time_service.{GetTimeRequest, SetTimeRequest}
 import com.digitalasset.ledger.api.v1.transaction_filter.{Filters, TransactionFilter}
@@ -24,8 +25,8 @@ import com.digitalasset.platform.apitesting.LedgerContext
 import com.digitalasset.platform.participant.util.LfEngineToApi
 import com.digitalasset.platform.tests.integration.ledger.api.LedgerTestingHelpers
 import com.google.protobuf.timestamp.Timestamp
-
 import scalaz.syntax.tag._
+
 import scala.collection.breakOut
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -63,13 +64,15 @@ class SemanticTestAdapter(
 
   override def submit(submitterName: Ref.Party, cmds: Commands, opDescription: String)
     : Future[Event.Events[String, Value.AbsoluteContractId, TxValue[Value.AbsoluteContractId]]] = {
-    println("Submitting '" + opDescription + "' on behalf of " + submitterName)
+    // println("Submitting '" + opDescription + "' on behalf of " + submitterName)
     for {
-      tx <- LedgerTestingHelpers
-        .sync(
-          lc.forParty(submitterName).commandService.submitAndWaitForTransactionId,
-          lc.forParty(submitterName),
-          timeoutScaleFactor = timeoutScaleFactor)
+      tx <- LedgerTestingHelpers(
+        ((request: SubmitAndWaitRequest) => {
+          // println("Submitting inner")
+          lc.forParty(submitterName).commandService.submitAndWaitForTransactionId(request)
+        }),
+        lc.forParty(submitterName),
+        timeoutScaleFactor = timeoutScaleFactor)
         .submitAndListenForSingleTreeResultOfCommand(
           SubmitRequest(Some(apiCommand(submitterName, cmds))),
           TransactionFilter(parties.map(_ -> Filters.defaultInstance)(breakOut)),

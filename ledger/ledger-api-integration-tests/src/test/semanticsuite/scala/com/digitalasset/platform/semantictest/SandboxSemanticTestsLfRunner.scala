@@ -45,14 +45,18 @@ class SandboxSemanticTestsLfRunner
     (dar.main._1, packages, df)
   }
 
+  println("BAR")
   s"a ledger launched with $darFile" should {
+    println("Foo")
     val scenarioCommandIdMangler: ((QualifiedName, Int, L.ScenarioNodeId) => String) =
       (scenario, stepId, nodeId) =>
         testIdsGenerator.testCommandId(s"ledger-api-test-tool-$scenario-$stepId-${nodeId}")
     for {
       (pkgId, names) <- SemanticTester.scenarios(Map(mainPkgId -> packages(mainPkgId))) // we only care about the main pkg
+      _ = println(s"Semantic tests to run: ${names}")
       name <- names
     } {
+      println(s"Running scenario ${name}")
       s"run scenario: $name" in allFixtures { ledger =>
         for {
           _ <- new SemanticTester(
