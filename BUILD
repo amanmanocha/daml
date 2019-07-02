@@ -1,5 +1,6 @@
 package(default_visibility = ["//:__subpackages__"])
 
+load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
 load(
     "@io_tweag_rules_haskell//haskell:haskell.bzl",
     "haskell_toolchain",
@@ -49,6 +50,27 @@ load(
 c2hs_toolchain(
     name = "c2hs-toolchain",
     c2hs = "@haskell_c2hs//:bin",
+)
+
+#
+# Pythonh toolchain
+#
+
+py_runtime(
+    name = "nix_python3_runtime",
+    interpreter = "@python3_nix//:bin/python",
+    python_version = "PY3",
+)
+
+py_runtime_pair(
+    name = "nix_python_runtime_pair",
+    py3_runtime = ":nix_python3_runtime",
+)
+
+toolchain(
+    name = "nix_python_toolchain",
+    toolchain = ":nix_python_runtime_pair",
+    toolchain_type = "@bazel_tools//tools/python:toolchain_type",
 )
 
 filegroup(
