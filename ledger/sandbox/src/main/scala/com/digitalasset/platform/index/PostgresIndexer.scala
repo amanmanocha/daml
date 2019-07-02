@@ -160,8 +160,8 @@ class PostgresIndexer(initialOffset: Long, beginAfter: Option[LedgerString], led
             PersistenceEntry.Checkpoint(LedgerEntry.Checkpoint(recordTime)))
           .map(_ => headRef = headRef + 1)(DEC)
 
-      case PartyAddedToParticipant(party) =>
-        ledgerDao.storeParty(party, None).map(_ => ())(DEC)
+      case PartyAddedToParticipant(party, displayName, _, _) =>
+        ledgerDao.storeParty(party, Some(displayName)).map(_ => ())(DEC)
 
       case PublicPackagesUploaded(_, _, _, _) =>
         // TODO (GS) implement once https://github.com/digital-asset/daml/pull/1610 lands

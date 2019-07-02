@@ -122,7 +122,7 @@ class StandaloneIndexServer(
 
     val packageStore = new InMemoryPackageStore()
     config.archiveFiles.foreach { f =>
-      packageStore.putDarFile(Instant.now, f.getName, f)
+      packageStore.putDarFile(Instant.now, Some(f.getName), f)
     }
     createInitialState(packageStore)
 
