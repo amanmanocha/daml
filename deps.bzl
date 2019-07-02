@@ -29,7 +29,7 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
-rules_scala_version = "78104d8014d4e4fc8f905cd34b91dfabd9a268c8"
+rules_scala_version = "8092d5f6165a8d9c4797d5f089c1ba4eee3326b1"
 rules_haskell_version = "772f04acc3eec5b6d219db09e46604ccff1f5755"
 rules_haskell_sha256 = "d4bb5ecc0f2d0949a1b4bddd1b64c164d750247cccc1a883ae6b6430ae9c8b6e"
 rules_nixpkgs_version = "5ffb8a4ee9a52bc6bc12f95cd64ecbd82a79bc82"
@@ -97,7 +97,7 @@ def daml_deps():
             url = "https://github.com/bazelbuild/rules_scala/archive/%s.zip" % rules_scala_version,
             type = "zip",
             strip_prefix = "rules_scala-%s" % rules_scala_version,
-            sha256 = "2b39ea3eba5ce86126980fa2bf20db9e0896b75aec23f0c639d9bb47dd9914b9",
+            sha256 = "db536b9db36b5aa737db9d08fa05d1fa5531c9cf213b04bed4e9b9fc34cc2390",
             patches = [
                 "@com_github_digital_asset_daml//bazel_tools:scala-escape-jvmflags.patch",
             ],
