@@ -10,7 +10,7 @@ load(
     "c2hs_toolchain",
 )
 load("//bazel_tools:haskell.bzl", "da_haskell_library", "da_haskell_repl")
-load("@os_info//:os_info.bzl", "is_darwin", "is_windows")
+load("@os_info//:os_info.bzl", "is_windows")
 
 exports_files([".hlint.yaml"])
 
@@ -60,12 +60,12 @@ py_runtime(
     name = "nix_python3_runtime",
     interpreter = "@python3_nix//:bin/python",
     python_version = "PY3",
-)
+) if not is_windows else None
 
 py_runtime_pair(
     name = "nix_python_runtime_pair",
     py3_runtime = ":nix_python3_runtime",
-)
+) if not is_windows else None
 
 toolchain(
     name = "nix_python_toolchain",
@@ -74,7 +74,7 @@ toolchain(
     ],
     toolchain = ":nix_python_runtime_pair",
     toolchain_type = "@bazel_tools//tools/python:toolchain_type",
-)
+) if not is_windows else None
 
 filegroup(
     name = "node_modules",
