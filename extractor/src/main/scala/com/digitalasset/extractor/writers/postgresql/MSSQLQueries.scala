@@ -14,7 +14,7 @@ import java.time.{Instant, LocalDate}
 
 import scalaz._
 import Scalaz._
-trait Q {
+trait Queries {
 
   implicit val timeStampWrite: Write[V.ValueTimestamp] =
     Write[Instant].contramap[V.ValueTimestamp](_.value.toInstant)
@@ -35,9 +35,9 @@ trait Q {
   private def setComment(obj: String, name: String, comment: String): Fragment =
     Fragment.const(s"COMMENT ON ${obj} ${name} IS '${comment}'")
 
-  val dropTransactionsTable: Fragment = dropTableIfExists("transaction")
+  def dropTransactionsTable: Fragment = dropTableIfExists("transaction")
 
-  val createTransactionsTable: Fragment = sql"""
+  def createTransactionsTable: Fragment = sql"""
         CREATE TABLE
           transaction
           (transaction_id TEXT PRIMARY KEY NOT NULL
@@ -49,9 +49,9 @@ trait Q {
           )
       """
 
-  val dropStateTable: Fragment = dropTableIfExists("state")
+  def dropStateTable: Fragment = dropTableIfExists("state")
 
-  val createStateTable: Fragment = sql"""
+  def createStateTable: Fragment = sql"""
         CREATE TABLE IF NOT EXISTS
           state
           (key TEXT PRIMARY KEY NOT NULL,
@@ -59,7 +59,7 @@ trait Q {
           )
       """
 
-  val checkStateTableExists: Fragment = isTableExists("state")
+  def checkStateTableExists: Fragment = isTableExists("state")
 
   def getState(key: String): Fragment = {
     sql"""
@@ -84,7 +84,7 @@ trait Q {
     """
   }
 
-  val transactionsIndex: Fragment = createIndex("transaction", NonEmptyList("workflow_id"))
+  def transactionsIndex: Fragment = createIndex("transaction", NonEmptyList("workflow_id"))
 
   def insertTransaction(t: TransactionTree): Fragment = {
     sql"""
@@ -320,10 +320,10 @@ trait Q {
     }
   }
 }
-object PGQueries extends Q {
+class PGQueries extends Queries {
 
 }
 
-object MSSQLQueries extends Q {
+class MSSQLQueries extends Queries {
 
 }

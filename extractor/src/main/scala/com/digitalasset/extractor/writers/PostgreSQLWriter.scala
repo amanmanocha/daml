@@ -26,14 +26,13 @@ import Scalaz._
 import com.digitalasset.daml.lf.iface.Record
 import com.typesafe.scalalogging.StrictLogging
 
-class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledgerId: String)
+class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledgerId: String, q: Queries)
     extends Writer
     with StrictLogging {
 
   // Uncomment this to have queries logged
   // implicit val lh = doobie.util.log.LogHandler.jdkLogHandler
 
-  import postgresql.MSSQLQueries._
 
   implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
@@ -67,10 +66,10 @@ class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledger
       previousState <- StateHandler.retrieveStatus
       io <- previousState.fold {
         // There were no state, start with a clean slate
-        val drop = dropTransactionsTable.update.run
-        val createTrans = createTransactionsTable.update.run
-        val indexTrans = transactionsIndex.update.run
-        val createExercise = createExerciseTable.update.run
+        val drop = q.dropTransactionsTable.update.run
+        val createTrans = q.createTransactionsTable.update.run
+        val indexTrans = q.transactionsIndex.update.run
+        val createExercise = q.createExerciseTable.update.run
         val singleInit =
           if (useSingleTableFormat)
             singleTableFormat.init()
@@ -167,7 +166,7 @@ class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledger
   def handleTransaction(transaction: TransactionTree): Future[RefreshPackages \/ Unit] = {
     logger.trace(s"Handling transaction: ${com.digitalasset.extractor.pformat(transaction)}")
 
-    val insertIO = insertTransaction(transaction).update.run.void
+    val insertIO = q.insertTransaction(transaction).update.run.void
 
     val createdEvents: List[CreatedEvent] = transaction.events.values.collect {
       case e @ CreatedEvent(_, _, _, _, _) => e
@@ -215,6 +214,6 @@ class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledger
   }
 
   def getLastOffset: Future[Option[String]] = {
-    lastOffset.query[String].option.transact(xa).unsafeToFuture()
+    q.lastOffset.query[String].option.transact(xa).unsafeToFuture()
   }
 }

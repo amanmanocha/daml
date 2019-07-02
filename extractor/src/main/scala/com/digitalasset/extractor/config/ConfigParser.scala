@@ -22,6 +22,7 @@ object ConfigParser {
   private case object SimpleText extends CliTarget
   private case object PrettyPrint extends CliTarget
   private case object PostgreSQL extends CliTarget
+  private case object MSSQL extends CliTarget
 
   // It's better to add an intermediate type similarly as Scallop works
   // (see [[ScallopConfig]] in git history which is already nicer),
@@ -91,7 +92,7 @@ object ConfigParser {
 
       cmd("postgresql")
         .text("Extract data into a PostgreSQL database.")
-        .action((_, c) => c.copy(target = PostgreSQL))
+        .action((_, c) => c.copy(target = MSSQL))
         .action((_, c) => c.copy(driver = "org.postgresql.Driver"))
         .children(
           opt[String]("connecturl")
@@ -356,6 +357,12 @@ object ConfigParser {
             cliParams.multiTableUseSchemes,
             cliParams.multiTableMergeIdentical,
             cliParams.stripPrefix
+          )
+        case MSSQL =>
+          MSSQLTarget(
+            cliParams.driver,
+            cliParams.connectUrl,
+            cliParams.user
           )
       }
 
