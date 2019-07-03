@@ -347,8 +347,8 @@ object ConfigParser {
       val target = cliParams.target match {
         case SimpleText => TextPrintTarget
         case PrettyPrint => PrettyPrintTarget(cliParams.pprintWidth, cliParams.pprintHeight)
-        case PostgreSQL =>
-          PostgreSQLTarget(
+        case PostgreSQL|MSSQL =>
+          SQLTarget(
             cliParams.driver,
             cliParams.connectUrl,
             cliParams.user,
@@ -357,12 +357,6 @@ object ConfigParser {
             cliParams.multiTableUseSchemes,
             cliParams.multiTableMergeIdentical,
             cliParams.stripPrefix
-          )
-        case MSSQL =>
-          MSSQLTarget(
-            cliParams.driver,
-            cliParams.connectUrl,
-            cliParams.user
           )
       }
 

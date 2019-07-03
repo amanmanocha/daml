@@ -5,7 +5,7 @@ package com.digitalasset.extractor.writers.postgresql
 
 import com.digitalasset.extractor.config.{ExtractorConfig, SnapshotEndSetting, TemplateConfig}
 import com.digitalasset.extractor.json.JsonConverters._
-import com.digitalasset.extractor.targets.PostgreSQLTarget
+import com.digitalasset.extractor.targets.SQLTarget
 import com.digitalasset.extractor.writers.postgresql.DataFormatState.MultiTableState
 import com.digitalasset.ledger.api.v1.ledger_offset.LedgerOffset
 import doobie._
@@ -25,7 +25,7 @@ import Scalaz._
 object StateHandler {
 
   case class StartUpParameters(
-      target: PostgreSQLTarget,
+      target: SQLTarget,
       from: LedgerOffset,
       to: SnapshotEndSetting,
       party: String,
@@ -52,23 +52,23 @@ object StateHandler {
     "witnessedPackages"
   )(Status.apply)
 
-  import MSSQLQueries._
 
   // The version of the state we're currently support.
   // Might change over time, so it's better to version it
   // and deal with backward compatibility specifically
   val version = 1
 
-  def init(): ConnectionIO[Unit] = {
-    createStateTable.update.run.void
+  def init(q:Queries): ConnectionIO[Unit] = {
+    q.createStateTable.update.run.void
   }
 
   def saveStatus(
       ledgerId: String,
       config: ExtractorConfig,
-      target: PostgreSQLTarget,
+      target: SQLTarget,
       multiTableState: MultiTableState,
-      witnessedPackages: Set[String]
+      witnessedPackages: Set[String],
+      q:Queries
   ): ConnectionIO[Unit] = {
     val currentState = Status(
       ledgerId,
@@ -77,14 +77,14 @@ object StateHandler {
       witnessedPackages
     )
 
-    setState("currentStatus", currentState.asJson.noSpaces).update.run *>
-      setState("statusVersion", version.toString).update.run.void
+    q.setState("currentStatus", currentState.asJson.noSpaces).update.run *>
+      q.setState("statusVersion", version.toString).update.run.void
   }
 
-  def retrieveStatus: ConnectionIO[Option[String \/ Status]] = {
+  def retrieveStatus(q:Queries): ConnectionIO[Option[String \/ Status]] = {
     (for {
-      version <- OptionT(getState("statusVersion").query[Int].option)
-      statusString <- OptionT(getState("currentStatus").query[String].option)
+      version <- OptionT(q.getState("statusVersion").query[Int].option)
+      statusString <- OptionT(q.getState("currentStatus").query[String].option)
     } yield {
       version match {
         case 1 => decodeStatus(statusString)
@@ -96,7 +96,7 @@ object StateHandler {
 
   private def extractStartUpParams(
       config: ExtractorConfig,
-      target: PostgreSQLTarget): StartUpParameters = {
+      target: SQLTarget): StartUpParameters = {
     StartUpParameters(
       target.copy(connectUrl = "**masked**", user = "**masked**", password = "**masked**"),
       config.from,
@@ -114,7 +114,7 @@ object StateHandler {
       previousStatus: Status,
       ledgerId: String,
       config: ExtractorConfig,
-      target: PostgreSQLTarget
+      target: SQLTarget
   ): String \/ Status = {
     val result = for {
       _ <- validateLedgerId(

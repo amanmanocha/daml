@@ -7,7 +7,7 @@ import com.digitalasset.extractor.config.ExtractorConfig
 import com.digitalasset.extractor.ledger.LedgerReader.PackageStore
 import com.digitalasset.extractor.ledger.types.{Identifier, TransactionTree}
 import com.digitalasset.extractor.targets._
-import com.digitalasset.extractor.writers.postgresql.{MSSQLQueries, PGQueries}
+import com.digitalasset.extractor.writers.postgresql.{PGQueries}
 
 import scala.concurrent.Future
 import scalaz._
@@ -28,8 +28,6 @@ object Writer {
     target match {
       case TextPrintTarget => new SimpleTextWriter(println)
       case t: PrettyPrintTarget => new PrettyPrintWriter(t)
-      case t: PostgreSQLTarget => new PostgreSQLWriter(config, t, ledgerId, new PGQueries)
-      case t: MSSQLTarget => new PostgreSQLWriter(config, t, ledgerId, new MSSQLQueries)
-
+      case t: SQLTarget => new PostgreSQLWriter(config, t, ledgerId, new PGQueries)
     }
 }

@@ -8,7 +8,7 @@ import com.digitalasset.extractor.config.ExtractorConfig
 import com.digitalasset.extractor.ledger.LedgerReader
 import com.digitalasset.extractor.ledger.LedgerReader.PackageStore
 import com.digitalasset.extractor.ledger.types._
-import com.digitalasset.extractor.targets.PostgreSQLTarget
+import com.digitalasset.extractor.targets.{SQLTarget}
 import com.digitalasset.extractor.Types._
 import com.digitalasset.extractor.writers.postgresql._
 import com.digitalasset.extractor.writers.postgresql.DataFormatState._
@@ -26,7 +26,8 @@ import Scalaz._
 import com.digitalasset.daml.lf.iface.Record
 import com.typesafe.scalalogging.StrictLogging
 
-class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledgerId: String, q: Queries)
+
+class PostgreSQLWriter(config: ExtractorConfig, target: SQLTarget, ledgerId: String, q: Queries)
     extends Writer
     with StrictLogging {
 
@@ -36,12 +37,8 @@ class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledger
 
   implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
-  private val multiTableFormat = new MultiTableDataFormat(
-    schemaPerPackage = target.schemaPerPackage,
-    mergeIdentical = target.mergeIdentical,
-    stripPrefix = target.stripPrefix
-  )
-  private val singleTableFormat = new SingleTableDataFormat()
+  private val multiTableFormat = new MultiTableDataFormat(schemaPerPackage = target.schemaPerPackage, mergeIdentical = target.mergeIdentical, stripPrefix = target.stripPrefix, q)
+  private val singleTableFormat = new SingleTableDataFormat(q)
 
   private val useSingleTableFormat = List("single-table", "combined").contains(target.outputFormat)
   private val useMultiTableFormat = List("multi-table", "combined").contains(target.outputFormat)
@@ -62,8 +59,10 @@ class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledger
     logger.info("PostgreSQLWriter initializing...")
 
     val io = for {
-      _ <- StateHandler.init()
-      previousState <- StateHandler.retrieveStatus
+      _ <- StateHandler.init(q)
+      previousState <- StateHandler.retrieveStatus(q)
+      _ <- logger.info("Ststehandle inited")
+
       io <- previousState.fold {
         // There were no state, start with a clean slate
         val drop = q.dropTransactionsTable.update.run
@@ -116,7 +115,8 @@ class PostgreSQLWriter(config: ExtractorConfig, target: PostgreSQLTarget, ledger
       config,
       target,
       newMultiTableState,
-      updatedWitnessedPackages)
+      updatedWitnessedPackages,
+      q)
 
     (mtQueries *> saveStatus)
       .transact(xa)

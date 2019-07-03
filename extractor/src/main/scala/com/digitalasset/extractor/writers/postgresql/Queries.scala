@@ -153,10 +153,9 @@ trait Queries {
       """
   }
 
-  object SingleTable {
-    val dropContractsTable: Fragment = dropTableIfExists("contract")
+    def dropContractsTable: Fragment = dropTableIfExists("contract")
 
-    val createContractsTable: Fragment = sql"""
+    def createContractsTable: Fragment = sql"""
       CREATE TABLE
         contract
         (event_id TEXT PRIMARY KEY NOT NULL
@@ -200,13 +199,11 @@ trait Queries {
           ${toJsonString(event.witnessParties)}::jsonb
         )
       """
-  }
 
-  object MultiTable {
     def createContractTable(table: String, columns: List[(String, String)]): Fragment = {
-      val columnDefs = columns.map { case (name, typeDef) => s"$name $typeDef" } mkString (", ", ", \n", "")
+      def columnDefs = columns.map { case (name, typeDef) => s"$name $typeDef" } mkString (", ", ", \n", "")
 
-      val query =
+      def query =
         s"""CREATE TABLE
             ${table}
             (
@@ -240,7 +237,7 @@ trait Queries {
                         transactionId: String,
                         isRoot: Boolean): Fragment = {
       // using `DEFAULT`s so there's no need to explicitly list field names (which btw aren't available in the event)
-      val baseColumns = List(
+      def baseColumns = List(
         Fragment("?", event.eventId), // _event_id
         Fragment.const("DEFAULT"), // _archived_by_event_id
         Fragment("?", event.contractId), // _contract_id
@@ -250,7 +247,7 @@ trait Queries {
         Fragment("?::jsonb", toJsonString(event.witnessParties)) // _witness_parties
       )
 
-      val contractArgColumns = event.createArguments.fields.map {
+      def contractArgColumns = event.createArguments.fields.map {
         case (_, value) => toFragmentNullable(value)
       }
 
@@ -318,12 +315,22 @@ trait Queries {
             s"tuple should not be present in contract, as raw tuples are not serializable: $tuple")
       }
     }
-  }
 }
 class PGQueries extends Queries {
 
 }
 
 class MSSQLQueries extends Queries {
+
+  override def createSchema(schema: String): Fragment =
+    Fragment.const(s"CREATE SCHEMA  ${schema}")
+
+  override def createStateTable: Fragment = sql"""
+        CREATE TABLE
+          state
+          (key TEXT PRIMARY KEY NOT NULL,
+          value TEXT NOT NULL
+          )
+    """
 
 }

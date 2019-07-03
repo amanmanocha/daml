@@ -5,7 +5,7 @@ package com.digitalasset.extractor.services
 
 import com.digitalasset.extractor.Extractor
 import com.digitalasset.extractor.config.{ExtractorConfig, SnapshotEndSetting}
-import com.digitalasset.extractor.targets.PostgreSQLTarget
+import com.digitalasset.extractor.targets.SQLTarget
 import com.digitalasset.daml.lf.data.Ref.Party
 import com.digitalasset.ledger.api.v1.ledger_offset.LedgerOffset
 import com.digitalasset.ledger.api.tls.TlsConfiguration
@@ -14,6 +14,7 @@ import com.digitalasset.platform.sandbox.services.SandboxFixture
 import scalaz.OneAnd
 import cats.effect.{ContextShift, IO}
 import doobie._
+import doobie.free.driver
 import doobie.implicits._
 import org.scalatest._
 
@@ -43,7 +44,7 @@ trait ExtractorFixture extends SandboxFixture with PostgresAround with Types {
 
   protected def configureExtractor(ec: ExtractorConfig): ExtractorConfig = ec
 
-  protected def target: PostgreSQLTarget = PostgreSQLTarget(
+  protected def target: SQLTarget = SQLTarget(
     driver = "org.postgresql.Driver",
     connectUrl = postgresFixture.jdbcUrl,
     user = "test",
@@ -89,7 +90,7 @@ trait ExtractorFixture extends SandboxFixture with PostgresAround with Types {
       .unsafeRunSync()
   }
 
-  protected var extractor: Extractor[PostgreSQLTarget] = _
+  protected var extractor: Extractor[SQLTarget] = _
 
   protected def run(): Unit = {
     val config: ExtractorConfig = configureExtractor(baseConfig.copy(ledgerPort = getSandboxPort))

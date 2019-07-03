@@ -23,19 +23,13 @@ import scala.annotation.tailrec
 import scalaz._
 import Scalaz._
 
-class MultiTableDataFormat(
-    /*splat: Int, */ schemaPerPackage: Boolean,
-    mergeIdentical: Boolean,
-    stripPrefix: Option[String]
-) extends DataFormat[MultiTableState] {
-  import MSSQLQueries._
-  import MSSQLQueries.MultiTable._
+class MultiTableDataFormat(schemaPerPackage: Boolean, mergeIdentical: Boolean, stripPrefix: Option[String], q: Queries) extends DataFormat[MultiTableState] {
 
   // schema name for contract tables when not using separate schemas per package
   private val singleSchemaName = "template"
 
   def init(): ConnectionIO[Unit] = {
-    createSchema(singleSchemaName).update.run.void
+    q.createSchema(singleSchemaName).update.run.void
   }
 
   def handleTemplate(
@@ -99,7 +93,7 @@ class MultiTableDataFormat(
         .filter(_._2 == mergeIntoTable)
         .keySet + id
 
-      val io = setTableComment(
+      val io = q.setTableComment(
         mergeIntoTable.withSchema,
         s"Template IDs:\n${mergedTemplateIds.map(idAsComment).mkString("\n")}"
       ).update.run.void
@@ -152,8 +146,8 @@ class MultiTableDataFormat(
       val baseName = "package_" + packageId.take(40)
       val schemaName = uniqueName(state.packageIdToNameSpace.values.toSet, baseName)
 
-      val io = createSchema(schemaName).update.run *>
-        setSchemaComment(schemaName, s"Package ID: ${packageId}").update.run.void
+      val io = q.createSchema(schemaName).update.run *>
+        q.setSchemaComment(schemaName, s"Package ID: ${packageId}").update.run.void
       val updatedState =
         state.copy(packageIdToNameSpace = state.packageIdToNameSpace + (packageId -> schemaName))
 
@@ -173,7 +167,7 @@ class MultiTableDataFormat(
     } yield {
       val update =
         if (event.consuming)
-          setContractArchived(
+          q.setContractArchived(
             table.withSchema,
             event.contractCreatingEventId,
             transaction.transactionId,
@@ -182,7 +176,7 @@ class MultiTableDataFormat(
           connection.pure(())
 
       val insert =
-        insertExercise(
+        q.insertExercise(
           event,
           transaction.transactionId,
           transaction.rootEventIds.contains(event.eventId)).update.run.void
@@ -199,7 +193,7 @@ class MultiTableDataFormat(
     for {
       table <- state.templateToTable.get(event.templateId).\/>(RefreshPackages(event.templateId))
     } yield {
-      val insertQuery = insertContract(
+      val insertQuery = q.insertContract(
         table.withSchema,
         event,
         transaction.transactionId,
@@ -215,7 +209,7 @@ class MultiTableDataFormat(
       params: iface.Record.FWT,
       templateId: Identifier
   ): ConnectionIO[Unit] = {
-    val drop = dropTableIfExists(tableName).update.run
+    val drop = q.dropTableIfExists(tableName).update.run
 
     val columnsWithTypes = params.fields
       .map(_._1)
@@ -227,15 +221,15 @@ class MultiTableDataFormat(
       .reverse
       .zip(mapColumnTypes(params))
 
-    val create = createContractTable(tableName, columnsWithTypes).update.run
-    val setComment = setTableComment(
+    val create = q.createContractTable(tableName, columnsWithTypes).update.run
+    val setComment = q.setTableComment(
       tableName,
       s"Template IDs:\n${idAsComment(templateId)}"
     ).update.run
 
-    val createIndexT = createIndex(tableName, NonEmptyList("_transaction_id")).update.run
+    val createIndexT = q.createIndex(tableName, NonEmptyList("_transaction_id")).update.run
     val createIndexA =
-      createIndex(tableName, NonEmptyList("_archived_by_transaction_id")).update.run
+      q.createIndex(tableName, NonEmptyList("_archived_by_transaction_id")).update.run
 
     drop *> create *> setComment *> createIndexA *> createIndexT.void
   }

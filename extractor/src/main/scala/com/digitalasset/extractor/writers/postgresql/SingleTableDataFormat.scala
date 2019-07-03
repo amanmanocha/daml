@@ -16,15 +16,13 @@ import doobie.free.connection.ConnectionIO
 
 import scalaz._, Scalaz._
 
-class SingleTableDataFormat extends DataFormat[SingleTableState.type] {
-  import MSSQLQueries._
-  import MSSQLQueries.SingleTable._
+class SingleTableDataFormat(q: Queries) extends DataFormat[SingleTableState.type] {
 
   def init(): ConnectionIO[Unit] = {
-    dropContractsTable.update.run *>
-      createContractsTable.update.run *>
+    q.dropContractsTable.update.run *>
+      q.createContractsTable.update.run *>
       // the order of the index is important as people will seach by either template or both
-      createIndex("contract", NonEmptyList("template", "package_id")).update.run.void
+      q.createIndex("contract", NonEmptyList("template", "package_id")).update.run.void
   }
 
   def handleTemplate(
@@ -50,7 +48,7 @@ class SingleTableDataFormat extends DataFormat[SingleTableState.type] {
       event: ExercisedEvent
   ): Writer.RefreshPackages \/ ConnectionIO[Unit] = {
     val query =
-      setContractArchived(event.contractCreatingEventId, transaction.transactionId, event.eventId)
+      q.setContractArchived(event.contractCreatingEventId, transaction.transactionId, event.eventId)
 
     query.update.run.void.right
   }
@@ -60,7 +58,7 @@ class SingleTableDataFormat extends DataFormat[SingleTableState.type] {
       transaction: TransactionTree,
       event: CreatedEvent
   ): Writer.RefreshPackages \/ ConnectionIO[Unit] = {
-    insertContract(
+    q.insertContract(
       event,
       transaction.transactionId,
       transaction.rootEventIds.contains(event.eventId)).update.run.void.right
