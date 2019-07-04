@@ -61,7 +61,6 @@ class PostgreSQLWriter(config: ExtractorConfig, target: SQLTarget, ledgerId: Str
     val io = for {
       _ <- StateHandler.init(q)
       previousState <- StateHandler.retrieveStatus(q)
-      _ <- logger.info("Ststehandle inited")
 
       io <- previousState.fold {
         // There were no state, start with a clean slate

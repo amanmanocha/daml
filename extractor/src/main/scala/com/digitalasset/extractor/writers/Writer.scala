@@ -3,11 +3,12 @@
 
 package com.digitalasset.extractor.writers
 
+import com.digitalasset.extractor.config.ConfigParser.{MSSQL, PostgreSQL}
 import com.digitalasset.extractor.config.ExtractorConfig
 import com.digitalasset.extractor.ledger.LedgerReader.PackageStore
 import com.digitalasset.extractor.ledger.types.{Identifier, TransactionTree}
 import com.digitalasset.extractor.targets._
-import com.digitalasset.extractor.writers.postgresql.{PGQueries}
+import com.digitalasset.extractor.writers.postgresql.{MSSQLQueries, PGQueries}
 
 import scala.concurrent.Future
 import scalaz._
@@ -28,6 +29,8 @@ object Writer {
     target match {
       case TextPrintTarget => new SimpleTextWriter(println)
       case t: PrettyPrintTarget => new PrettyPrintWriter(t)
-      case t: SQLTarget => new PostgreSQLWriter(config, t, ledgerId, new PGQueries)
+      case t@SQLTarget(dbType:PostgreSQL, _, _, _, _, _, _, _,_) => new PostgreSQLWriter(config, t, ledgerId, new PGQueries)
+      case t@SQLTarget(dbType:MSSQL, _, _, _, _, _, _, _,_) => new PostgreSQLWriter(config, t, ledgerId, new MSSQLQueries)
+
     }
 }

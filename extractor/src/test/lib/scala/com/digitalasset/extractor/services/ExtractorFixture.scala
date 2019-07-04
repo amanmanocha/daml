@@ -13,6 +13,7 @@ import com.digitalasset.platform.sandbox.persistence.PostgresAround
 import com.digitalasset.platform.sandbox.services.SandboxFixture
 import scalaz.OneAnd
 import cats.effect.{ContextShift, IO}
+import com.digitalasset.extractor.config.ConfigParser.PostgreSQL
 import doobie._
 import doobie.free.driver
 import doobie.implicits._
@@ -45,6 +46,7 @@ trait ExtractorFixture extends SandboxFixture with PostgresAround with Types {
   protected def configureExtractor(ec: ExtractorConfig): ExtractorConfig = ec
 
   protected def target: SQLTarget = SQLTarget(
+    PostgreSQL(),
     driver = "org.postgresql.Driver",
     connectUrl = postgresFixture.jdbcUrl,
     user = "test",

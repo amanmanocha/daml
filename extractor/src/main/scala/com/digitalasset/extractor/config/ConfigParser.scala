@@ -18,11 +18,12 @@ import scala.util.Try
 import scopt.OptionParser
 
 object ConfigParser {
-  private sealed trait CliTarget
-  private case object SimpleText extends CliTarget
-  private case object PrettyPrint extends CliTarget
-  private case object PostgreSQL extends CliTarget
-  private case object MSSQL extends CliTarget
+  sealed trait CliTarget
+  case object SimpleText extends CliTarget
+  case object PrettyPrint extends CliTarget
+  private sealed abstract class SQLTarget extends CliTarget
+  final case class PostgreSQL() extends CliTarget
+  final case class MSSQL() extends CliTarget
 
   // It's better to add an intermediate type similarly as Scallop works
   // (see [[ScallopConfig]] in git history which is already nicer),
@@ -92,7 +93,7 @@ object ConfigParser {
 
       cmd("postgresql")
         .text("Extract data into a PostgreSQL database.")
-        .action((_, c) => c.copy(target = MSSQL))
+        .action((_, c) => c.copy(target = PostgreSQL()))
         .action((_, c) => c.copy(driver = "org.postgresql.Driver"))
         .children(
           opt[String]("connecturl")
@@ -165,7 +166,7 @@ object ConfigParser {
 
       cmd("mssql")
         .text("Extract data into a MSSQL database.")
-        .action((_, c) => c.copy(target = PostgreSQL))
+        .action((_, c) => c.copy(target =  MSSQL()))
         .action((_, c) => c.copy(driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"))
         .children(
           opt[String]("connecturl")
@@ -347,8 +348,21 @@ object ConfigParser {
       val target = cliParams.target match {
         case SimpleText => TextPrintTarget
         case PrettyPrint => PrettyPrintTarget(cliParams.pprintWidth, cliParams.pprintHeight)
-        case PostgreSQL|MSSQL =>
+        case a:MSSQL =>
           SQLTarget(
+            cliParams.target,
+            cliParams.driver,
+            cliParams.connectUrl,
+            cliParams.user,
+            cliParams.password,
+            cliParams.outputFormat,
+            cliParams.multiTableUseSchemes,
+            cliParams.multiTableMergeIdentical,
+            cliParams.stripPrefix
+          )
+        case a:PostgreSQL =>
+          SQLTarget(
+            cliParams.target,
             cliParams.driver,
             cliParams.connectUrl,
             cliParams.user,
