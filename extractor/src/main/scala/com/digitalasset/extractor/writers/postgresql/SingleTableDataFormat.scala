@@ -20,9 +20,9 @@ class SingleTableDataFormat(q: Queries) extends DataFormat[SingleTableState.type
 
   def init(): ConnectionIO[Unit] = {
     q.dropContractsTable.update.run *>
-      q.createContractsTable.update.run *>
+      q.createContractsTable.update.run.void
       // the order of the index is important as people will seach by either template or both
-      q.createIndex("contract", NonEmptyList("template", "package_id")).update.run.void
+      // q.createIndex("contract", NonEmptyList("template", "package_id")).update.run.void
   }
 
   def handleTemplate(

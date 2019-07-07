@@ -14,6 +14,17 @@ import java.time.{Instant, LocalDate}
 
 import scalaz._
 import Scalaz._
+import com.digitalasset.daml.lf.data.{Time => LfTime}
+import com.digitalasset.daml.lf.value.{Value => V}
+import com.digitalasset.extractor.json.JsonConverters._
+import com.digitalasset.extractor.Types._
+import com.digitalasset.extractor.ledger.types._
+import doobie._
+import doobie.implicits._
+import java.time.{Instant, LocalDate}
+
+import scalaz._
+import Scalaz._
 trait Queries {
 
   implicit val timeStampWrite: Write[V.ValueTimestamp] =
@@ -32,8 +43,11 @@ trait Queries {
     * PostgreSQL doesn't support DDL queries like this one as prepared statement,
     * thus parameters can't be escaped. We have to make sure to use sensible comments (no 's, etc.).
     */
-  private def setComment(obj: String, name: String, comment: String): Fragment =
-    Fragment.const(s"COMMENT ON ${obj} ${name} IS '${comment}'")
+  private def setComment(obj: String, name: String, comment: String): Fragment = {
+//    Fragment.const(s"COMMENT ON ${obj} ${name} IS '${comment}'")
+    Fragment.const(s"")
+
+  }
 
   def dropTransactionsTable: Fragment = dropTableIfExists("transaction")
 
@@ -73,7 +87,7 @@ trait Queries {
         state (key, value)
       VALUES
         (${key}, ${value})
-      ON CONFLICT (key) DO UPDATE
+      ON DUPLICATE (key) DO UPDATE
         SET value = excluded.value
     """
   }
@@ -110,15 +124,18 @@ trait Queries {
       WHERE  tablename = ${table}
     );"""
 
+//  def createIndex(table: String, columns: NonEmptyList[String]): Fragment =
+//    Fragment.const(s"CREATE INDEX ON ${table} (${columns.stream.mkString(", ")})")
+
   def createIndex(table: String, columns: NonEmptyList[String]): Fragment =
-    Fragment.const(s"CREATE INDEX ON ${table} (${columns.stream.mkString(", ")})")
+    Fragment.const(s"")
 
   val createExerciseTable: Fragment = sql"""
         CREATE TABLE
           exercise
           (event_id TEXT PRIMARY KEY NOT NULL
           ,transaction_id TEXT NOT NULL
-          ,is_root_event BOOLEAN NOT NULL
+          ,is_root_event BIT NOT NULL
           ,contract_id TEXT NOT NULL
           ,package_id TEXT NOT NULL
           ,template TEXT NOT NULL
@@ -126,7 +143,7 @@ trait Queries {
           ,choice TEXT NOT NULL
           ,choice_argument JSONB NOT NULL
           ,acting_parties JSONB NOT NULL
-          ,consuming BOOLEAN NOT NULL
+          ,consuming BIT NOT NULL
           ,witness_parties JSONB NOT NULL
           ,child_event_ids JSONB NOT NULL
           )
@@ -163,7 +180,7 @@ trait Queries {
         ,contract_id TEXT NOT NULL
         ,transaction_id TEXT NOT NULL
         ,archived_by_transaction_id TEXT DEFAULT NULL
-        ,is_root_event BOOLEAN NOT NULL
+        ,is_root_event BIT NOT NULL
         ,package_id TEXT NOT NULL
         ,template TEXT NOT NULL
         ,create_arguments JSONB NOT NULL
@@ -212,7 +229,7 @@ trait Queries {
               ,_contract_id TEXT NOT NULL
               ,_transaction_id TEXT NOT NULL
               ,_archived_by_transaction_id TEXT DEFAULT NULL
-              ,_is_root_event BOOLEAN NOT NULL
+              ,_is_root_event BIT NOT NULL
               ,_witness_parties JSONB NOT NULL
               ${columnDefs}
             )
@@ -325,12 +342,77 @@ class MSSQLQueries extends Queries {
   override def createSchema(schema: String): Fragment =
     Fragment.const(s"CREATE SCHEMA  ${schema}")
 
+  override def createTransactionsTable: Fragment = sql"""
+        CREATE TABLE
+          [transaction]
+          (transaction_id VARCHAR NOT NULL
+          ,seq INT NOT NULL IDENTITY
+          ,workflow_id TEXT
+          ,effective_at DATETIME NOT NULL
+          ,extracted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          ,ledger_offset TEXT NOT NULL
+          PRIMARY KEY(transaction_id)
+          )
+      """
+
   override def createStateTable: Fragment = sql"""
         CREATE TABLE
           state
-          (key TEXT PRIMARY KEY NOT NULL,
+          ( [key1] VARCHAR NOT NULL,
           value TEXT NOT NULL
+          PRIMARY KEY([key1])
           )
     """
+
+  override def createContractsTable: Fragment = sql"""
+      CREATE TABLE
+        contract
+        (event_id TEXT  NOT NULL
+        ,archived_by_event_id TEXT DEFAULT NULL
+        ,contract_id TEXT NOT NULL
+        ,transaction_id TEXT NOT NULL
+        ,archived_by_transaction_id TEXT DEFAULT NULL
+        ,is_root_event BIT NOT NULL
+        ,package_id TEXT NOT NULL
+        ,template TEXT NOT NULL
+        ,create_arguments JSONB NOT NULL
+        ,witness_parties JSONB NOT NULL
+        PRIMARY KEY(event_id)
+        )
+    """
+
+  override def getState(key: String): Fragment = {
+    sql"""
+      SELECT TOP 1 value FROM state WHERE key1 = ${key}
+    """
+  }
+
+  override def dropTransactionsTable: Fragment = dropTableIfExists("[transaction]")
+
+  override def transactionsIndex: Fragment = createIndex("[transaction]", NonEmptyList("workflow_id"))
+
+  override def insertTransaction(t: TransactionTree): Fragment = {
+    sql"""
+       INSERT INTO
+         [transaction]
+         (transaction_id, workflow_id, effective_at, ledger_offset)
+         VALUES (${t.transactionId}, ${t.workflowId}, ${t.effectiveAt}, ${t.offset})
+    """
+  }
+
+  override def lastOffset: Fragment = {
+    sql"""
+       SELECT ledger_offset FROM [transaction] ORDER BY seq DESC LIMIT 1
+    """
+  }
+
+  override def setState(key: String, value: String): Fragment = {
+    sql"""
+
+      IF NOT EXISTS (SELECT * FROM dbo.Employee WHERE [key] = (${key}))
+         INSERT INTO state([key], value) VALUES (${key}, ${value})
+      ELSE UPDATE stateSET value = excluded.value
+    """
+  }
 
 }
