@@ -130,7 +130,7 @@ trait Queries {
   def createIndex(table: String, columns: NonEmptyList[String]): Fragment =
     Fragment.const(s"")
 
-  val createExerciseTable: Fragment = sql"""
+  def createExerciseTable: Fragment = sql"""
         CREATE TABLE
           exercise
           (event_id TEXT PRIMARY KEY NOT NULL
@@ -279,7 +279,7 @@ trait Queries {
       (base +: valueFragments :+ Fragment.const(")")).suml
     }
 
-    private def toFragmentNullable(valueSum: LedgerValue): Fragment = {
+  protected def toFragmentNullable(valueSum: LedgerValue): Fragment = {
       valueSum match {
         case V.ValueOptional(None) => Fragment.const("NULL")
         case V.ValueOptional(Some(innerVal)) => toFragment(innerVal)
@@ -367,7 +367,7 @@ class MSSQLQueries extends Queries {
   override def createContractsTable: Fragment = sql"""
       CREATE TABLE
         contract
-        (event_id TEXT  NOT NULL
+        (event_id VARCHAR  NOT NULL
         ,archived_by_event_id TEXT DEFAULT NULL
         ,contract_id TEXT NOT NULL
         ,transaction_id TEXT NOT NULL
@@ -375,12 +375,32 @@ class MSSQLQueries extends Queries {
         ,is_root_event BIT NOT NULL
         ,package_id TEXT NOT NULL
         ,template TEXT NOT NULL
-        ,create_arguments JSONB NOT NULL
-        ,witness_parties JSONB NOT NULL
+        ,create_arguments nvarchar(max) NOT NULL
+        ,witness_parties nvarchar(max) NOT NULL
         PRIMARY KEY(event_id)
         )
     """
 
+  override def createContractTable(table: String, columns: List[(String, String)]): Fragment = {
+    def columnDefs = columns.map { case (name, typeDef) => s"$name $typeDef" } mkString (", ", ", \n", "")
+
+    def query =
+      s"""CREATE TABLE
+        ${table}
+        (
+          _event_id TEXT PRIMARY KEY NOT NULL
+          ,_archived_by_event_id TEXT DEFAULT NULL
+          ,_contract_id TEXT NOT NULL
+          ,_transaction_id TEXT NOT NULL
+          ,_archived_by_transaction_id TEXT DEFAULT NULL
+          ,_is_root_event BIT NOT NULL
+          ,_witness_parties nvarchar(max) NOT NULL
+          ${columnDefs}
+        )
+    """
+
+    Fragment.const(query)
+  }
   override def getState(key: String): Fragment = {
     sql"""
       SELECT TOP 1 value FROM state WHERE key1 = ${key}
@@ -402,7 +422,7 @@ class MSSQLQueries extends Queries {
 
   override def lastOffset: Fragment = {
     sql"""
-       SELECT ledger_offset FROM [transaction] ORDER BY seq DESC LIMIT 1
+       SELECT top 1 ledger_offset FROM [transaction] ORDER BY seq DESC
     """
   }
 
@@ -414,5 +434,94 @@ class MSSQLQueries extends Queries {
       ELSE UPDATE stateSET value = excluded.value
     """
   }
+
+  override def insertExercise(event: ExercisedEvent, transactionId: String, isRoot: Boolean): Fragment = {
+    sql"""
+        INSERT INTO exercise
+        VALUES (
+          ${event.eventId},
+          ${transactionId},
+          ${isRoot},
+          ${event.contractId},
+          ${event.templateId.packageId},
+          ${event.templateId.name},
+          ${event.contractCreatingEventId},
+          ${event.choice},
+          ${toJsonString(event.choiceArgument)},
+          ${toJsonString(event.actingParties)},
+          ${event.consuming},
+          ${toJsonString(event.witnessParties)},
+          ${toJsonString(event.childEventIds)}
+        )
+      """
+  }
+
+  override def insertContract(event: CreatedEvent, transactionId: String, isRoot: Boolean): Fragment =
+    sql"""
+        INSERT INTO contract
+        VALUES (
+          ${event.eventId},
+          DEFAULT, -- archived_by_event_id
+          ${event.contractId},
+          ${transactionId},
+          DEFAULT, -- archived_by_transaction_id
+          ${isRoot},
+          ${event.templateId.packageId},
+          ${event.templateId.name},
+          ${toJsonString(event.createArguments)},
+          ${toJsonString(event.witnessParties)}
+        )
+      """
+
+  override def insertContract(
+                               table: String,
+                               event: CreatedEvent,
+                               transactionId: String,
+                               isRoot: Boolean): Fragment = {
+    // using `DEFAULT`s so there's no need to explicitly list field names (which btw aren't available in the event)
+    def baseColumns = List(
+      Fragment("?", event.eventId), // _event_id
+      Fragment.const("DEFAULT"), // _archived_by_event_id
+      Fragment("?", event.contractId), // _contract_id
+      Fragment("?", transactionId), // _transaction_id
+      Fragment.const("DEFAULT"), // _archived_by_transaction_id
+      Fragment.const(if (isRoot) "TRUE" else "FALSE"), // _is_root_event
+      Fragment("?", toJsonString(event.witnessParties)) // _witness_parties
+    )
+
+    def contractArgColumns = event.createArguments.fields.map {
+      case (_, value) => toFragmentNullable(value)
+    }
+
+    val columns = baseColumns ++ contractArgColumns.toSeq
+
+    val base = Fragment.const(
+      s"INSERT INTO ${table} VALUES ("
+    )
+
+    val valueFragments = columns.intersperse(Fragment.const(", "))
+
+    (base +: valueFragments :+ Fragment.const(")")).suml
+  }
+
+
+  override def createExerciseTable: Fragment = sql"""
+        CREATE TABLE
+          exercise
+          (event_id VARCHAR PRIMARY KEY NOT NULL
+          ,transaction_id TEXT NOT NULL
+          ,is_root_event BIT NOT NULL
+          ,contract_id TEXT NOT NULL
+          ,package_id TEXT NOT NULL
+          ,template TEXT NOT NULL
+          ,contract_creating_event_id TEXT NOT NULL
+          ,choice TEXT NOT NULL
+          ,choice_argument nvarchar(max) NOT NULL
+          ,acting_parties nvarchar(max) NOT NULL
+          ,consuming BIT NOT NULL
+          ,witness_parties nvarchar(max) NOT NULL
+          ,child_event_ids nvarchar(max) NOT NULL
+          )
+      """
 
 }

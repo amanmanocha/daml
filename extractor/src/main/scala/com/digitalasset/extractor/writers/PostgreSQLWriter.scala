@@ -49,7 +49,7 @@ class PostgreSQLWriter(config: ExtractorConfig, target: SQLTarget, ledgerId: Str
 
   // A transactor that gets connections from java.sql.DriverManager
   private val xa = Transactor.fromDriverManager[IO](
-    target.driver, // driver classname
+      target.driver, // driver classname
     target.connectUrl, // connect URL (driver-specific)
     target.user,
     target.password
