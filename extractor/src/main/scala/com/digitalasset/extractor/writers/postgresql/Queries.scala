@@ -345,7 +345,7 @@ class MSSQLQueries extends Queries {
   override def createTransactionsTable: Fragment = sql"""
         CREATE TABLE
           [transaction]
-          (transaction_id VARCHAR NOT NULL
+          (transaction_id varchar(256) NOT NULL
           ,seq INT NOT NULL IDENTITY
           ,workflow_id TEXT
           ,effective_at DATETIME NOT NULL
@@ -358,16 +358,16 @@ class MSSQLQueries extends Queries {
   override def createStateTable: Fragment = sql"""
         CREATE TABLE
           state
-          ( [key1] VARCHAR NOT NULL,
-          value TEXT NOT NULL
-          PRIMARY KEY([key1])
+          ( [key] nvarchar(256) NOT NULL,
+          [value] TEXT NOT NULL
+          PRIMARY KEY([key])
           )
     """
 
   override def createContractsTable: Fragment = sql"""
       CREATE TABLE
         contract
-        (event_id VARCHAR  NOT NULL
+        (event_id nvarchar(256)  NOT NULL
         ,archived_by_event_id TEXT DEFAULT NULL
         ,contract_id TEXT NOT NULL
         ,transaction_id TEXT NOT NULL
@@ -388,7 +388,7 @@ class MSSQLQueries extends Queries {
       s"""CREATE TABLE
         ${table}
         (
-          _event_id TEXT PRIMARY KEY NOT NULL
+          _event_id varchar(256) PRIMARY KEY NOT NULL
           ,_archived_by_event_id TEXT DEFAULT NULL
           ,_contract_id TEXT NOT NULL
           ,_transaction_id TEXT NOT NULL
@@ -403,7 +403,7 @@ class MSSQLQueries extends Queries {
   }
   override def getState(key: String): Fragment = {
     sql"""
-      SELECT TOP 1 value FROM state WHERE key1 = ${key}
+      SELECT TOP(1) [value] FROM state WHERE [key] = ${key}
     """
   }
 
@@ -429,9 +429,9 @@ class MSSQLQueries extends Queries {
   override def setState(key: String, value: String): Fragment = {
     sql"""
 
-      IF NOT EXISTS (SELECT * FROM dbo.Employee WHERE [key] = (${key}))
-         INSERT INTO state([key], value) VALUES (${key}, ${value})
-      ELSE UPDATE stateSET value = excluded.value
+      IF NOT EXISTS (SELECT * FROM state WHERE [key] = (${key}))
+         INSERT INTO state([key], [value]) VALUES (${key}, ${value})
+      ELSE UPDATE state SET [value] = ${value}
     """
   }
 
@@ -508,7 +508,7 @@ class MSSQLQueries extends Queries {
   override def createExerciseTable: Fragment = sql"""
         CREATE TABLE
           exercise
-          (event_id VARCHAR PRIMARY KEY NOT NULL
+          (event_id varchar(256) PRIMARY KEY NOT NULL
           ,transaction_id TEXT NOT NULL
           ,is_root_event BIT NOT NULL
           ,contract_id TEXT NOT NULL
