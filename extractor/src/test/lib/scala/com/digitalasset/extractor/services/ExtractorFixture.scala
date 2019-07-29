@@ -46,11 +46,7 @@ trait ExtractorFixture extends SandboxFixture with PostgresAround with Types {
   protected def target: PostgreSQLTarget = PostgreSQLTarget(
     connectUrl = postgresFixture.jdbcUrl,
     user = "test",
-    password = "",
-    outputFormat = "combined",
-    schemaPerPackage = false,
-    mergeIdentical = false,
-    stripPrefix = None
+    password = ""
   )
 
   protected implicit lazy val xa = Transactor.fromDriverManager[IO](

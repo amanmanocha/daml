@@ -14,7 +14,6 @@ import com.digitalasset.daml.lf.data.{
 import com.digitalasset.daml.lf.value.{Value => V}
 import com.digitalasset.extractor.ledger.types.{Identifier, LedgerValue}
 import com.digitalasset.extractor.ledger.types.LedgerValue._
-import com.digitalasset.extractor.writers.postgresql.DataFormatState.MultiTableState
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.generic.semiauto._
@@ -110,7 +109,4 @@ object JsonConverters {
     Encoder[String].contramap(_.toString)
   implicit val lfTimestampEncoder: Encoder[Time.Timestamp] =
     Encoder[String].contramap(_.toString)
-
-  implicit val multiTableStateEncoder: Encoder[MultiTableState] = deriveEncoder[MultiTableState]
-  implicit val multiTableStateDecoder: Decoder[MultiTableState] = deriveDecoder[MultiTableState]
 }

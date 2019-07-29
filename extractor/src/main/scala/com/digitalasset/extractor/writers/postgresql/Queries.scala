@@ -3,38 +3,19 @@
 
 package com.digitalasset.extractor.writers.postgresql
 
-import com.digitalasset.daml.lf.data.{Time => LfTime}
+import java.time.Instant
+
 import com.digitalasset.daml.lf.value.{Value => V}
 import com.digitalasset.extractor.json.JsonConverters._
-import com.digitalasset.extractor.Types._
 import com.digitalasset.extractor.ledger.types._
 import doobie._
 import doobie.implicits._
-import java.time.{Instant, LocalDate}
-
 import scalaz._
-import Scalaz._
 
 object Queries {
 
   implicit val timeStampWrite: Write[V.ValueTimestamp] =
     Write[Instant].contramap[V.ValueTimestamp](_.value.toInstant)
-
-  def createSchema(schema: String): Fragment =
-    Fragment.const(s"CREATE SCHEMA IF NOT EXISTS ${schema}")
-
-  def setSchemaComment(schema: String, comment: String): Fragment =
-    setComment("SCHEMA", schema, comment)
-
-  def setTableComment(table: String, comment: String): Fragment =
-    setComment("TABLE", table, comment)
-
-  /**
-    * PostgreSQL doesn't support DDL queries like this one as prepared statement,
-    * thus parameters can't be escaped. We have to make sure to use sensible comments (no 's, etc.).
-    */
-  private def setComment(obj: String, name: String, comment: String): Fragment =
-    Fragment.const(s"COMMENT ON ${obj} ${name} IS '${comment}'")
 
   val dropTransactionsTable: Fragment = dropTableIfExists("transaction")
 
@@ -49,8 +30,6 @@ object Queries {
           ,ledger_offset TEXT NOT NULL
           )
       """
-
-  val dropStateTable: Fragment = dropTableIfExists("state")
 
   val createStateTable: Fragment = sql"""
         CREATE TABLE IF NOT EXISTS
@@ -148,7 +127,7 @@ object Queries {
           ${toJsonString(event.choiceArgument)}::jsonb,
           ${toJsonString(event.actingParties)}::jsonb,
           ${event.consuming},
-          ${toJsonString(event.witnessParties)}::jsonb,
+          ${toJsonString(event.witnessParties)}::jFsonb,
           ${toJsonString(event.childEventIds)}::jsonb
         )
       """
@@ -201,124 +180,5 @@ object Queries {
           ${toJsonString(event.witnessParties)}::jsonb
         )
       """
-  }
-
-  object MultiTable {
-    def createContractTable(table: String, columns: List[(String, String)]): Fragment = {
-      val columnDefs = columns.map { case (name, typeDef) => s"$name $typeDef" } mkString (", ", ", \n", "")
-
-      val query =
-        s"""CREATE TABLE
-            ${table}
-            (
-              _event_id TEXT PRIMARY KEY NOT NULL
-              ,_archived_by_event_id TEXT DEFAULT NULL
-              ,_contract_id TEXT NOT NULL
-              ,_transaction_id TEXT NOT NULL
-              ,_archived_by_transaction_id TEXT DEFAULT NULL
-              ,_is_root_event BOOLEAN NOT NULL
-              ,_witness_parties JSONB NOT NULL
-              ${columnDefs}
-            )
-        """
-
-      Fragment.const(query)
-    }
-
-    def setContractArchived(
-        table: String,
-        eventId: String,
-        transactionId: String,
-        archivedByEventId: String
-    ): Fragment =
-      Fragment.const(s"UPDATE ${table} SET ") ++
-        fr"_archived_by_transaction_id = ${transactionId}, " ++
-        fr"_archived_by_event_id = ${archivedByEventId} WHERE _event_id = ${eventId}"
-
-    def insertContract(
-        table: String,
-        event: CreatedEvent,
-        transactionId: String,
-        isRoot: Boolean): Fragment = {
-      // using `DEFAULT`s so there's no need to explicitly list field names (which btw aren't available in the event)
-      val baseColumns = List(
-        Fragment("?", event.eventId), // _event_id
-        Fragment.const("DEFAULT"), // _archived_by_event_id
-        Fragment("?", event.contractId), // _contract_id
-        Fragment("?", transactionId), // _transaction_id
-        Fragment.const("DEFAULT"), // _archived_by_transaction_id
-        Fragment.const(if (isRoot) "TRUE" else "FALSE"), // _is_root_event
-        Fragment("?::jsonb", toJsonString(event.witnessParties)) // _witness_parties
-      )
-
-      val contractArgColumns = event.createArguments.fields.map {
-        case (_, value) => toFragmentNullable(value)
-      }
-
-      val columns = baseColumns ++ contractArgColumns.toSeq
-
-      val base = Fragment.const(
-        s"INSERT INTO ${table} VALUES ("
-      )
-
-      val valueFragments = columns.intersperse(Fragment.const(", "))
-
-      (base +: valueFragments :+ Fragment.const(")")).suml
-    }
-
-    private def toFragmentNullable(valueSum: LedgerValue): Fragment = {
-      valueSum match {
-        case V.ValueOptional(None) => Fragment.const("NULL")
-        case V.ValueOptional(Some(innerVal)) => toFragment(innerVal)
-        case _ => toFragment(valueSum)
-      }
-    }
-
-    private def toFragment(valueSum: LedgerValue): Fragment = {
-      valueSum match {
-        case V.ValueBool(value) =>
-          Fragment.const(if (value) "TRUE" else "FALSE")
-        case r @ V.ValueRecord(_, _) =>
-          Fragment(
-            "?::jsonb",
-            toJsonString(r)
-          )
-        case v @ V.ValueVariant(_, _, _) =>
-          Fragment(
-            "?::jsonb",
-            toJsonString(v)
-          )
-        case e @ V.ValueEnum(_, _) =>
-          // FixMe (RH) https://github.com/digital-asset/daml/issues/105
-          throw new NotImplementedError("Enum types not supported")
-
-        case o @ V.ValueOptional(_) =>
-          Fragment(
-            "?::jsonb",
-            toJsonString(o)
-          )
-        case V.ValueContractId(value) => Fragment("?", value)
-        case l @ V.ValueList(_) =>
-          Fragment(
-            "?::jsonb",
-            toJsonString(l)
-          )
-        case V.ValueInt64(value) => Fragment("?", value)
-        case V.ValueDecimal(value) => Fragment("?::numeric(38,10)", value: BigDecimal)
-        case V.ValueText(value) => Fragment("?", value)
-        case ts @ V.ValueTimestamp(_) => Fragment("?", ts)
-        case V.ValueParty(value) => Fragment("?", value: String)
-        case V.ValueUnit => Fragment.const("FALSE")
-        case V.ValueDate(LfTime.Date(days)) => Fragment("?", LocalDate.ofEpochDay(days.toLong))
-        case V.ValueMap(m) =>
-          Fragment(
-            "?::jsonb",
-            toJsonString(m)
-          )
-        case tuple @ V.ValueTuple(_) =>
-          throw new IllegalArgumentException(
-            s"tuple should not be present in contract, as raw tuples are not serializable: $tuple")
-      }
-    }
   }
 }

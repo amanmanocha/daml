@@ -6,7 +6,6 @@ package com.digitalasset.extractor.writers.postgresql
 import com.digitalasset.extractor.config.{ExtractorConfig, SnapshotEndSetting, TemplateConfig}
 import com.digitalasset.extractor.json.JsonConverters._
 import com.digitalasset.extractor.targets.PostgreSQLTarget
-import com.digitalasset.extractor.writers.postgresql.DataFormatState.MultiTableState
 import com.digitalasset.ledger.api.v1.ledger_offset.LedgerOffset
 import doobie._
 import doobie.implicits._
@@ -34,21 +33,18 @@ object StateHandler {
   case class Status(
       ledgerId: String,
       startUpParameters: StartUpParameters,
-      multiTableState: MultiTableState,
       witnessedPackages: Set[String]
   )
 
-  implicit val statusEncoder: Encoder[Status] = Encoder.forProduct4(
+  implicit val statusEncoder: Encoder[Status] = Encoder.forProduct3(
     "ledgerId",
     "startUpParameters",
-    "multiTableState",
     "witnessedPackages"
-  )(s => (s.ledgerId, s.startUpParameters, s.multiTableState, s.witnessedPackages))
+  )(s => (s.ledgerId, s.startUpParameters, s.witnessedPackages))
 
-  implicit val statusDecoder: Decoder[Status] = Decoder.forProduct4(
+  implicit val statusDecoder: Decoder[Status] = Decoder.forProduct3(
     "ledgerId",
     "startUpParameters",
-    "multiTableState",
     "witnessedPackages"
   )(Status.apply)
 
@@ -67,13 +63,11 @@ object StateHandler {
       ledgerId: String,
       config: ExtractorConfig,
       target: PostgreSQLTarget,
-      multiTableState: MultiTableState,
       witnessedPackages: Set[String]
   ): ConnectionIO[Unit] = {
     val currentState = Status(
       ledgerId,
       extractStartUpParams(config, target),
-      multiTableState,
       witnessedPackages
     )
 
@@ -140,26 +134,6 @@ object StateHandler {
         previousStatus.startUpParameters.templateConfigs,
         config.templateConfigs.toList.sorted,
         "`--templates`"
-      )
-      _ <- validateParam(
-        previousStatus.startUpParameters.target.outputFormat,
-        target.outputFormat,
-        "`--output-format`"
-      )
-      _ <- validateParam(
-        previousStatus.startUpParameters.target.schemaPerPackage,
-        target.schemaPerPackage,
-        "`--schema-per-package`"
-      )
-      _ <- validateParam(
-        previousStatus.startUpParameters.target.mergeIdentical,
-        target.mergeIdentical,
-        "`--merge-identical`"
-      )
-      _ <- validateParam(
-        previousStatus.startUpParameters.target.stripPrefix,
-        target.stripPrefix,
-        "`--strip-prefix`"
       )
     } yield previousStatus
 

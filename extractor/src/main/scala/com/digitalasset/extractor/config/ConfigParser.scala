@@ -34,10 +34,6 @@ object ConfigParser {
       postgresConnectUrl: String = "",
       postgresUser: String = "",
       postgresPassword: String = "",
-      postgresOutputFormat: String = "single-table",
-      postgresMultiTableUseSchemes: Boolean = false,
-      postgresMultiTableMergeIdentical: Boolean = false,
-      postgresStripPrefix: Option[String] = None,
       ledgerHost: String = "127.0.0.1",
       ledgerPort: Int = 6865,
       ledgerInboundMessageSizeMax: Int = 50 * 1024 * 1024, // 50 MiBytes
@@ -111,53 +107,6 @@ object ConfigParser {
             )
             .optional()
             .action((x, c) => c.copy(postgresPassword = x)),
-          opt[String]("output-format")
-            .optional()
-            .hidden()
-            .validate { s =>
-              if (List("single-table", "multi-table", "combined").contains(s))
-                Right(())
-              else
-                Left(
-                  "Invalid value for parameter `--output-format`." +
-                    """Must be one of "single-table", "multi-table" or "combined"."""
-                )
-            }
-            .valueName("<single-table|multi-table|combined>")
-            .action((s, c) => c.copy(postgresOutputFormat = s))
-            .text(
-              s"""Format of the extracted data in the database. One of "single-table", "multi-table" or "combined".\n""" +
-                s"""${colSpacer}"single-table" = All contracts are put into a JSON encoded column of the same table.\n""" +
-                s"""${colSpacer}"multi-table" = Templates get their own tables, and create arguments their own column.\n""" +
-                s"""${colSpacer}"combined" = Use both data formats. Data will be duplicated."""" +
-                s"""Optional, default is "single-table"."""
-            ),
-          opt[Boolean]("schema-per-package")
-            .optional()
-            .hidden()
-            .valueName("<true|false>")
-            .action((x, c) => c.copy(postgresMultiTableUseSchemes = x))
-            .text(
-              "Whether to put contacts of separate packages into separate schemes. Optional, default is false."
-            ),
-          opt[Boolean]("merge-identical")
-            .optional()
-            .hidden()
-            .valueName("<true|false>")
-            .action((x, c) => c.copy(postgresMultiTableMergeIdentical = x))
-            .text(
-              "Whether to merge identical templates of separate packages into the same table.\n" +
-                s"${colSpacer}Optional, default is false."
-            ),
-          opt[String]("strip-prefix")
-            .optional()
-            .hidden()
-            .valueName("<value>")
-            .action((x, c) => c.copy(postgresStripPrefix = Some(x)))
-            .text(
-              "Parts of template names to cut from the beginning when using the multi-table strategy\n" +
-                s"${colSpacer}Optional."
-            )
         )
 
       note("\nCommon options:\n")
@@ -244,33 +193,7 @@ object ConfigParser {
           c.copy(tlsCaCrt = Some(path))
         }
 
-      checkConfig { c =>
-        if (c.postgresMultiTableUseSchemes && !List("multi-table", "combined").contains(
-            c.postgresOutputFormat)) {
-          failure(
-            "\n`--schema-per-package` was set `true`, while the data format strategy wasn't set to\n" +
-              "use separate tables per contract. This setting won't have any effects.\n" +
-              "Change the `--output-format` parameter to \"multi-table\" or \"combined\" to have a multi-table setup,\n" +
-              "or remove this parameter.\n"
-          )
-        } else if (c.postgresMultiTableMergeIdentical && !List("multi-table", "combined").contains(
-            c.postgresOutputFormat
-          )) {
-          failure(
-            "\n`--merge-identical` was set `true`, while the data format strategy wasn't set to\n" +
-              "use separate tables per contract. This setting won't have any effects.\n" +
-              "Change the `--output-format` parameter to \"multi-table\" or \"combined\" to have a multi-table setup,\n" +
-              "or remove this parameter.\n"
-          )
-        } else if (c.postgresMultiTableMergeIdentical && c.postgresMultiTableUseSchemes) {
-          failure(
-            "\nBoth `--merge-identical` and `--schema-per-package` parameter are set to `true`.\n" +
-              "Pick at most one of those.\n"
-          )
-        } else {
-          success
-        }
-      }
+      success
     }
 
   @SuppressWarnings(Array("org.wartremover.warts.Product", "org.wartremover.warts.Serializable"))
@@ -313,11 +236,7 @@ object ConfigParser {
           PostgreSQLTarget(
             cliParams.postgresConnectUrl,
             cliParams.postgresUser,
-            cliParams.postgresPassword,
-            cliParams.postgresOutputFormat,
-            cliParams.postgresMultiTableUseSchemes,
-            cliParams.postgresMultiTableMergeIdentical,
-            cliParams.postgresStripPrefix
+            cliParams.postgresPassword
           )
       }
 

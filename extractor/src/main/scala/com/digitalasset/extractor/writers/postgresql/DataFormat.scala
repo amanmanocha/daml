@@ -17,10 +17,6 @@ final case class TableName(withSchema: String, withOutSchema: String)
 sealed abstract class DataFormatState extends Product with Serializable
 object DataFormatState {
   case object SingleTableState extends DataFormatState
-  final case class MultiTableState(
-      templateToTable: Map[Identifier, TableName],
-      packageIdToNameSpace: Map[String, String]
-  ) extends DataFormatState
 }
 
 import DataFormat._
